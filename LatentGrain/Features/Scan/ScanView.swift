@@ -82,20 +82,19 @@ struct ScanView: View {
 
             Divider()
 
-            HStack {
-                Button("New Scan") { viewModel.reset() }
-                    .buttonStyle(.plain)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 10)
+            Button("New Scan") { viewModel.reset() }
+                .buttonStyle(.plain)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 10)
         }
     }
 
     // MARK: - Scan controls
 
     private var scanControls: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(spacing: 0) {
+            // Status area
             VStack(alignment: .leading, spacing: 6) {
                 if viewModel.isScanning {
                     Text("Scanning persistence locations…")
@@ -107,32 +106,52 @@ struct ScanView: View {
                     ReadyToShootView()
                 }
             }
-
-            HStack(spacing: 10) {
-                Button(viewModel.beforeSnapshot == nil ? "Shoot Before" : "Re-shoot Before") {
-                    Task { await viewModel.shootBefore() }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(viewModel.isScanning)
-
-                Button("Shoot After") {
-                    Task { await viewModel.shootAfter() }
-                }
-                .buttonStyle(.bordered)
-                .disabled(!viewModel.canShootAfter)
-            }
-            .controlSize(.large)
-
-            if let error = viewModel.scanError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
 
             Spacer()
+
+            // Action area — one primary action at a time
+            VStack(spacing: 8) {
+                if viewModel.beforeSnapshot == nil || viewModel.isScanning {
+                    Button {
+                        Task { await viewModel.shootBefore() }
+                    } label: {
+                        Text(viewModel.isScanning ? "Scanning…" : "Shoot Before")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(viewModel.isScanning)
+                } else {
+                    Button {
+                        Task { await viewModel.shootAfter() }
+                    } label: {
+                        Text("Shoot After")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
+                    Button("Re-shoot Before") {
+                        Task { await viewModel.shootBefore() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+
+                if let error = viewModel.scanError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 20)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -166,10 +185,6 @@ struct BeforeReadyView: View {
             Text("Now install your app, then tap Shoot After.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Text("Not ready yet? Hit Re-shoot Before to retake.")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 2)
         }
     }
 }

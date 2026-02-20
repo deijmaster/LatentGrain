@@ -2,184 +2,131 @@
 
 > *The fine detail of what's hiding on your Mac.*
 
-A macOS menu-bar utility that snapshots your Mac's entire persistence state — LaunchAgents, LaunchDaemons, Login Items, System Extensions — before and after any app install, then shows you exactly what changed in a Polaroid-style before/after UI.
+LatentGrain is a macOS menu-bar utility that snapshots your Mac's entire persistence state — LaunchAgents, LaunchDaemons, Login Items, System Extensions — before and after any app install, then shows you exactly what changed in a Polaroid-style before/after UI.
+
+Inspired by Patrick Wardle's [Objective-See](https://objective-see.org) tools, but built for everyone.
+
+---
+
+## How it works
+
+1. **Shoot Before** — take a snapshot of all persistence locations before installing an app
+2. Install your app
+3. **Shoot After** — take a second snapshot
+4. **Develop** — two Polaroid cards reveal what was there before and after, followed by a full diff of exactly what changed
+
+No alarmism. No bloat. Just the facts.
+
+---
+
+## Features
+
+- Scans all major macOS persistence locations
+- Detects **added**, **removed**, and **modified** items (via SHA-256 file hashing)
+- Highlights items that run at login or are configured to stay alive
+- Reveal in Finder for any item with one click
+- Quick-access shortcuts to every persistence folder in the toolbar
+- Vertically resizable window — scroll through long diffs comfortably
+- Clean, Apple-native UI — no Electron, no web views
+
+---
+
+## Persistence locations monitored
+
+| Location | Access |
+|---|---|
+| `~/Library/LaunchAgents` | User — no elevation needed |
+| `/Library/LaunchAgents` | User-readable |
+| `/Library/SystemExtensions` | User-readable |
+| `/Library/LaunchDaemons` | Privileged helper *(Phase 2)* |
+| Background Task Management DB | Full Disk Access *(Phase 2)* |
+
+---
+
+## Requirements
+
+- macOS 13 Ventura or later
+- Xcode 15+ (to build from source)
+
+---
+
+## Building from source
+
+This project uses [xcodegen](https://github.com/yonaskolb/XcodeGen) to manage the `.xcodeproj`.
+
+```bash
+# Install xcodegen if you don't have it
+brew install xcodegen
+
+# Clone and build
+git clone https://github.com/YOUR_USERNAME/LatentGrain.git
+cd LatentGrain
+xcodegen generate
+open LatentGrain.xcodeproj
+```
+
+Then press **⌘R** in Xcode to build and run.
+
+> **Note:** The app requires **App Sandbox disabled** to read system-level persistence paths. It is intended for direct distribution, not the Mac App Store.
 
 ---
 
 ## Architecture
 
 ```
-LatentGrain.app          ← SwiftUI menu-bar app (user-facing)
+LatentGrain.app              ← SwiftUI menu-bar app
        ↕ XPC
-LatentGrainHelper        ← Privileged XPC helper (reads /Library/LaunchDaemons)
+LatentGrainHelper            ← Privileged XPC helper (Phase 2)
        ↕
-JSON store (~/Library/Application Support/LatentGrain/)
+~/Library/Application Support/LatentGrain/   ← JSON snapshot store
 ```
 
-## Project Structure
+| Layer | Details |
+|---|---|
+| UI | SwiftUI, macOS 13+ |
+| Concurrency | Swift `actor` for scan services, `@MainActor` view models |
+| Storage | JSON files (no external dependencies) |
+| Hashing | SHA-256 via CryptoKit |
+| Helper IPC | XPC Service |
+| Launch at Login | `SMAppService` |
+
+---
+
+## Roadmap
+
+- [x] **Phase 1** — Core MVP: scan, diff, Polaroid UI, menu-bar app
+- [ ] **Phase 2** — Privileged helper for `/Library/LaunchDaemons` + Full Disk Access onboarding
+- [ ] **Phase 3** — App icon, onboarding flow, animation polish
+- [ ] **Phase 4** — Snapshot history, export (PDF/JSON), auto-scan on install *(freemium)*
+- [ ] **Phase 5** — Developer ID signing, notarization, DMG distribution
+
+---
+
+## Project structure
 
 ```
 LatentGrain/
-├── LatentGrain/                    # Main app target
-│   ├── App/
-│   │   ├── LatentGrainApp.swift    # @main, MenuBarExtra scene
-│   │   ├── AppDelegate.swift       # LSUIElement / Dock hide
-│   │   └── Info.plist
+├── LatentGrain/
+│   ├── App/                    AppDelegate, LatentGrainApp
 │   ├── Features/
-│   │   ├── Scan/
-│   │   │   ├── ScanView.swift
-│   │   │   └── ScanViewModel.swift
-│   │   ├── Diff/
-│   │   │   ├── DiffView.swift
-│   │   │   ├── PolaroidCardView.swift
-│   │   │   ├── DiffRowView.swift
-│   │   │   └── DiffViewModel.swift
-│   │   ├── History/
-│   │   │   └── HistoryView.swift   (Premium gate)
-│   │   └── Settings/
-│   │       └── SettingsView.swift
-│   ├── Models/
-│   │   ├── PersistenceItem.swift
-│   │   ├── PersistenceSnapshot.swift
-│   │   └── PersistenceDiff.swift
-│   ├── Services/
-│   │   ├── ScanService.swift
-│   │   ├── SnapshotService.swift
-│   │   ├── DiffService.swift
-│   │   ├── HelperService.swift
-│   │   └── StorageService.swift
-│   └── Utilities/
-│       ├── FileHasher.swift
-│       └── PlistParser.swift
-│
-├── LatentGrainHelper/
-│   ├── HelperMain.swift
-│   ├── HelperDelegate.swift
-│   ├── XPCProtocol.swift           (shared with main target)
-│   └── Info.plist
-│
-└── Tests/
-    ├── DiffServiceTests.swift
-    └── SnapshotServiceTests.swift
+│   │   ├── Scan/               ScanView, ScanViewModel
+│   │   ├── Diff/               DiffView, PolaroidCardView
+│   │   ├── History/            HistoryView (premium gate)
+│   │   └── Settings/           SettingsView
+│   ├── Models/                 PersistenceItem, Snapshot, Diff
+│   ├── Services/               ScanService, DiffService, StorageService
+│   └── Utilities/              FileHasher, PlistParser
+├── LatentGrainHelper/          Privileged XPC helper
+├── Tests/                      DiffService + SnapshotService unit tests
+└── project.yml                 xcodegen spec
 ```
 
 ---
 
-## Xcode Project Setup
+## License
 
-> **Requirements:** Xcode 15+, macOS 13 SDK, Apple Developer account
-
-### 1. Create the Xcode Project
-
-1. Open Xcode → **File → New → Project**
-2. Choose **macOS → App**
-3. Product Name: `LatentGrain`
-4. Bundle Identifier: `com.latentgrain.app`
-5. Language: Swift, Interface: SwiftUI
-6. **Uncheck** "Use Core Data" and "Include Tests" (we add tests manually)
-7. Save into `/Users/deijmaster/LatentGrain/`
-
-### 2. Add Source Files
-
-Delete the auto-generated `ContentView.swift` and `LatentGrainApp.swift` stubs,
-then drag all files from the `LatentGrain/` folder into the project navigator,
-adding them to the `LatentGrain` target.
-
-### 3. Main App Target Settings
-
-| Setting | Value |
-|---------|-------|
-| Deployment Target | macOS 13.0 |
-| App Sandbox | **OFF** |
-| Info.plist Key `LSUIElement` | `YES` |
-
-In **Signing & Capabilities**, add:
-- No sandbox (remove it entirely for direct distribution)
-
-### 4. Add LatentGrainHelper Target
-
-1. **File → New → Target → macOS → XPC Service**
-2. Product Name: `LatentGrainHelper`
-3. Bundle Identifier: `com.latentgrain.helper`
-4. Add these files to the helper target:
-   - `LatentGrainHelper/HelperMain.swift`
-   - `LatentGrainHelper/HelperDelegate.swift`
-   - `LatentGrainHelper/XPCProtocol.swift`
-5. Also add `XPCProtocol.swift` to the **main app target** (it's shared).
-
-### 5. Add Test Target
-
-1. **File → New → Target → macOS → Unit Testing Bundle**
-2. Product Name: `LatentGrainTests`
-3. Add `Tests/DiffServiceTests.swift` and `Tests/SnapshotServiceTests.swift`
-4. Set **Host Application** to `LatentGrain`
-
-### 6. Build & Run
-
-```bash
-# Build from command line
-xcodebuild -scheme LatentGrain -configuration Debug build
-```
-
-Or press **⌘R** in Xcode.
+MIT — see [LICENSE](LICENSE).
 
 ---
 
-## Monitored Persistence Locations
-
-| Location | Access |
-|----------|--------|
-| `~/Library/LaunchAgents` | User — no elevation |
-| `/Library/LaunchAgents` | User-readable |
-| `/Library/SystemExtensions` | User-readable |
-| `/Library/LaunchDaemons` | Requires privileged helper |
-| `/private/var/db/com.apple.backgroundtaskmanagement/` | Requires Full Disk Access |
-
----
-
-## Freemium Gates (Phase 4)
-
-| Feature | Free | Premium |
-|---------|------|---------|
-| Single before/after scan | ✓ | ✓ |
-| All persistence locations | ✓ | ✓ |
-| Current diff view | ✓ | ✓ |
-| Snapshot history | Last 1 | Unlimited |
-| Export (PDF/JSON) | ✗ | ✓ |
-| Auto-scan on install | ✗ | ✓ |
-| Verbose plist detail | ✗ | ✓ |
-
----
-
-## Key Technical Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| No App Sandbox | Required to read `/Library` paths |
-| `SMAppService` not `SMJobBless` | Modern helper API, macOS 13+ |
-| XPC for helper IPC | Secure, Apple-recommended |
-| JSON storage (not CoreData) | No `.xcdatamodel` needed; API is CoreData-compatible for easy migration |
-| SHA-256 per-file | Detects modifications, not just add/remove |
-| `actor` for scan services | Safe concurrent access from Swift `async` Tasks |
-| No EndpointSecurity in v1 | Avoids entitlement approval friction; planned for v2 |
-
----
-
-## UI / Design Rules
-
-- **Polaroid metaphor** — dark "undeveloped" photo area → animates to revealed on "Develop" tap
-- Monospaced font throughout for a technical-but-friendly feel
-- Staggered row entrance animation (spring, 70 ms delay per row)
-- Colors: green = added, red = removed, yellow = modified
-- ⚠️ warning icon for `RunAtLoad` / `KeepAlive` items
-- Empty state: *"Nothing changed — your Mac is clean 📷"* — friendly, not alarmist
-
----
-
-## Implementation Phases
-
-- [x] **Phase 1** — Core MVP (models, services, Polaroid UI, menu-bar app, tests)
-- [ ] **Phase 2** — Privileged helper activation + Full Disk Access onboarding
-- [ ] **Phase 3** — "Develop" animation polish, app icon, onboarding flow
-- [ ] **Phase 4** — StoreKit 2, FeatureGateManager, export, auto-scan (FSEvents)
-- [ ] **Phase 5** — Developer ID signing, notarytool notarization, DMG, website
+*Built with Swift + SwiftUI. No Electron was harmed in the making of this app.*

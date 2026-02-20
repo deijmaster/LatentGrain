@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .environmentObject(StorageService())
 
         let hostingController = NSHostingController(rootView: rootView)
+        hostingController.sizingOptions = []
         hostingController.view.autoresizingMask = [.width, .height]
 
         let win = NSWindow(contentViewController: hostingController)
@@ -82,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.maxSize = NSSize(width: 480, height: 1200)
         win.backgroundColor = NSColor.windowBackgroundColor
         win.isReleasedWhenClosed = false
+        win.delegate = self
 
         // Close button hides instead of terminating
         NotificationCenter.default.addObserver(
@@ -94,7 +96,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return win
     }
 
-    @objc private func windowWillClose(_ notification: Notification) {
+    @objc func windowWillClose(_ notification: Notification) {
         // Nothing extra needed — isReleasedWhenClosed = false keeps it alive
+    }
+}
+
+// MARK: - NSWindowDelegate
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        NSSize(width: sender.frame.width, height: frameSize.height)
     }
 }
