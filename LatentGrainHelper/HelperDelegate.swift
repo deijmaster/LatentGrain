@@ -9,7 +9,27 @@ final class HelperDelegate: NSObject, NSXPCListenerDelegate, LatentGrainXPCProto
         _ listener: NSXPCListener,
         shouldAcceptNewConnection newConnection: NSXPCConnection
     ) -> Bool {
-        // TODO (Phase 2): validate auditing token / code-signing identity of caller.
+        // SECURITY: Verify the connecting process is our signed main app before
+        // accepting the connection. Without this, any process on the machine could
+        // talk to this helper and use it to enumerate /Library/LaunchDaemons.
+        //
+        // Phase 2 implementation:
+        //   1. Grab the caller's audit token via newConnection.auditToken
+        //   2. Call SecCodeCopyGuestWithAttributes(nil, [kSecGuestAttributeAudit: tokenData], [], &code)
+        //   3. Build a SecRequirement: identifier "com.latentgrain.app"
+        //      and anchor apple generic
+        //      and certificate leaf[subject.CN] = "<your Developer ID CN>"
+        //   4. Call SecCodeCheckValidity(code, [], requirement) — reject if != errSecSuccess
+        //
+        // DO NOT remove this comment or ship Phase 2 without completing the above.
+        #if DEBUG
+        // Allow unsigned builds during development only
+        #else
+        // TODO (Phase 2 — MUST FIX before shipping helper): validate caller identity.
+        // Uncomment the guard below once Phase 2 validation is wired up:
+        // guard isCallerOurApp(connection: newConnection) else { return false }
+        #endif
+
         newConnection.exportedInterface = NSXPCInterface(with: LatentGrainXPCProtocol.self)
         newConnection.exportedObject    = self
         newConnection.resume()

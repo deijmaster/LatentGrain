@@ -10,10 +10,13 @@ struct SettingsView: View {
         Form {
             // MARK: General
             Section("General") {
-                Toggle("Launch at Login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { newValue in
+                Toggle("Launch at Login", isOn: Binding(
+                    get: { launchAtLogin },
+                    set: { newValue in
+                        launchAtLogin = newValue
                         applyLaunchAtLogin(enabled: newValue)
                     }
+                ))
             }
 
             // MARK: Scanning
@@ -49,9 +52,8 @@ struct SettingsView: View {
             // MARK: Privacy
             Section("Privacy") {
                 Button("Request Full Disk Access…") {
-                    NSWorkspace.shared.open(
-                        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
-                    )
+                    guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") else { return }
+                    NSWorkspace.shared.open(url)
                 }
                 .help("Needed to scan /Library/LaunchDaemons and Background Task Management")
             }

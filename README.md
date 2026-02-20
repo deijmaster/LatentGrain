@@ -17,6 +17,8 @@ LatentGrain is a macOS menu-bar utility that snapshots your Mac's entire persist
 
 No alarmism. No bloat. Just the facts.
 
+> **Privacy note:** On launch, LatentGrain makes a single request to the GitHub Releases API to check for updates. No personal data is sent — it is a plain unauthenticated GET to a public endpoint. Your IP address is visible to GitHub as with any HTTPS request. No other network requests are ever made.
+
 ---
 
 ## Features
@@ -120,6 +122,49 @@ LatentGrain/
 ├── Tests/                      DiffService + SnapshotService unit tests
 └── project.yml                 xcodegen spec
 ```
+
+---
+
+## Releasing *(Phase 5)*
+
+Requires an [Apple Developer Program](https://developer.apple.com/programs/) membership ($99/year) and a **Developer ID Application** certificate.
+
+```bash
+# 1. Archive
+#    Xcode → Product → Archive → Distribute App → Developer ID → export LatentGrain.app
+
+# 2. Package into a DMG (use create-dmg or Xcode Organizer)
+brew install create-dmg
+create-dmg \
+  --volname "LatentGrain" \
+  --window-size 540 380 \
+  --icon-size 128 \
+  --app-drop-link 380 180 \
+  "LatentGrain.dmg" \
+  "path/to/exported/LatentGrain.app"
+
+# 3. Notarize
+xcrun notarytool submit LatentGrain.dmg \
+  --apple-id "you@email.com" \
+  --team-id "YOURTEAMID" \
+  --keychain-profile "notarytool-profile" \
+  --wait
+
+# 4. Staple the notarization ticket so it works offline
+xcrun stapler staple LatentGrain.dmg
+
+# 5. Verify
+spctl -a -v LatentGrain.app
+```
+
+> **Keychain profile** — store your credentials once so you never type them again:
+> ```bash
+> xcrun notarytool store-credentials "notarytool-profile" \
+>   --apple-id "you@email.com" \
+>   --team-id "YOURTEAMID" \
+>   --password "app-specific-password"
+> ```
+> Generate the app-specific password at [appleid.apple.com](https://appleid.apple.com).
 
 ---
 

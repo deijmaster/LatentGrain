@@ -40,7 +40,7 @@ class HelperService {
                 continuation.resume(throwing: error)
             } as? LatentGrainXPCProtocol
 
-            proxy?.scanLocation("/Library/LaunchDaemons") { result, error in
+            proxy?.scanLocation(PersistenceLocation.systemLaunchDaemons.resolvedPath) { result, error in
                 if let error {
                     continuation.resume(throwing: error)
                 } else {

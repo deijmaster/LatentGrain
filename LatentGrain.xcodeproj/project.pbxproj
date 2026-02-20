@@ -13,6 +13,7 @@
 		0D161AD81EEF49A412EDAADF /* FileHasher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F2D27AAD078806D006049EA /* FileHasher.swift */; };
 		319623EC21DB529067E6DF9C /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2DADE1E92542DA790BAE627 /* ScanView.swift */; };
 		38C438D5497CBB5D9BA5ED18 /* PersistenceItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 698C71D0E3B03E7107CA1D23 /* PersistenceItem.swift */; };
+		3D0A0522682D37CBE5044D64 /* UpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13752E395D1E73C5963936CE /* UpdateChecker.swift */; };
 		4B3480954DD186A5F37B138B /* SnapshotServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CAB998793E1C32723B08AC1 /* SnapshotServiceTests.swift */; };
 		5A31F2D7135A567539F68E93 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE82D32C6B6FB48F3E2B7EA8 /* AppDelegate.swift */; };
 		5BA6746D1C0A2E8A7A32E961 /* PersistenceSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28349DEC1E48BA9393D2C494 /* PersistenceSnapshot.swift */; };
@@ -67,6 +68,7 @@
 /* Begin PBXFileReference section */
 		02F28D9553936EA4F106AFCE /* ScanService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanService.swift; sourceTree = "<group>"; };
 		0B20627438F4EA851659C13F /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
+		13752E395D1E73C5963936CE /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		26EB2E5D9B174F14644D10C5 /* PersistenceDiff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceDiff.swift; sourceTree = "<group>"; };
 		27A5546B1572A013154FD995 /* LatentGrainHelper.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = LatentGrainHelper.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
 		27D2DD384DF247A9E131C855 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -121,6 +123,7 @@
 				02F28D9553936EA4F106AFCE /* ScanService.swift */,
 				2B9C80EEF434E646A23190B1 /* SnapshotService.swift */,
 				0B20627438F4EA851659C13F /* StorageService.swift */,
+				13752E395D1E73C5963936CE /* UpdateChecker.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -355,6 +358,7 @@
 				890E98DC6F6280FD5FF82533 /* SettingsView.swift in Sources */,
 				D059539A53E31F20AA621FC8 /* SnapshotService.swift in Sources */,
 				A95DC26971CFC8377D6454D2 /* StorageService.swift in Sources */,
+				3D0A0522682D37CBE5044D64 /* UpdateChecker.swift in Sources */,
 				04309603ECA780556B548DCF /* XPCProtocol.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

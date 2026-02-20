@@ -19,7 +19,12 @@ final class StorageService: ObservableObject {
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first!
         let appDir = appSupport.appendingPathComponent("LatentGrain", isDirectory: true)
-        try? FileManager.default.createDirectory(at: appDir, withIntermediateDirectories: true)
+        // 0o700 — only the owner can enter/list this directory
+        try? FileManager.default.createDirectory(
+            at: appDir,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
         self.storageURL = appDir.appendingPathComponent("snapshots.json")
         load()
     }
@@ -57,5 +62,10 @@ final class StorageService: ObservableObject {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         guard let data = try? encoder.encode(snapshots) else { return }
         try? data.write(to: storageURL, options: .atomic)
+        // Restrict to owner read/write only — snapshot data is sensitive
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: storageURL.path
+        )
     }
 }

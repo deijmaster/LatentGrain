@@ -11,6 +11,8 @@ final class ScanViewModel: ObservableObject {
     @Published private(set) var isScanning: Bool = false
     @Published var scanError: String?
     @Published var isDiffRevealed: Bool = false
+    @Published var isUpdateAvailable: Bool = false
+    @Published var latestTag: String? = nil
 
     // MARK: - Derived
 
