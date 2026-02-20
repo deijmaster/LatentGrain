@@ -4,8 +4,6 @@
 
 LatentGrain is a macOS menu-bar utility that snapshots your Mac's entire persistence state — LaunchAgents, LaunchDaemons, Login Items, System Extensions — before and after any app install, then shows you exactly what changed in a Polaroid-style before/after UI.
 
-Inspired by Patrick Wardle's [Objective-See](https://objective-see.org) tools, but built for everyone.
-
 ---
 
 ## How it works
