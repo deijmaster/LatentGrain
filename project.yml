@@ -1,0 +1,74 @@
+name: LatentGrain
+options:
+  bundleIdPrefix: com.latentgrain
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+
+  # ─── Main App ───────────────────────────────────────────────────
+  LatentGrain:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+
+    sources:
+      - path: LatentGrain
+        excludes:
+          - "**/*.md"
+      # XPCProtocol is physically in LatentGrainHelper/ but must compile in both targets
+      - path: LatentGrainHelper/XPCProtocol.swift
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.latentgrain.app
+        INFOPLIST_FILE: LatentGrain/App/Info.plist
+        # No App Sandbox — required to read /Library paths
+        ENABLE_APP_SANDBOX: NO
+        CODE_SIGN_ENTITLEMENTS: ""
+
+    dependencies:
+      - target: LatentGrainHelper
+        embed: true
+
+  # ─── Privileged XPC Helper ──────────────────────────────────────
+  LatentGrainHelper:
+    type: xpc-service
+    platform: macOS
+    deploymentTarget: "13.0"
+
+    sources:
+      - path: LatentGrainHelper
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.latentgrain.helper
+        INFOPLIST_FILE: LatentGrainHelper/Info.plist
+        ENABLE_APP_SANDBOX: NO
+
+  # ─── Unit Tests ─────────────────────────────────────────────────
+  LatentGrainTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+
+    sources:
+      - path: Tests
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.latentgrain.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/LatentGrain.app/Contents/MacOS/LatentGrain"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+    dependencies:
+      - target: LatentGrain

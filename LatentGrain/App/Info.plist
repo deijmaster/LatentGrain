@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App identity -->
+    <key>CFBundleIdentifier</key>
+    <string>com.latentgrain.app</string>
+    <key>CFBundleName</key>
+    <string>LatentGrain</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <!-- Hide from Dock — runs as menu-bar only -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- macOS 13+ minimum -->
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+
+    <!-- Usage strings shown in System Settings → Privacy -->
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>LatentGrain reads persistence configuration files to detect what changed on your Mac.</string>
+    <key>NSSystemAdministrationUsageDescription</key>
+    <string>LatentGrain needs privileged access to scan system-level LaunchDaemons.</string>
+
+    <!-- Copyright -->
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2025 LatentGrain. All rights reserved.</string>
+</dict>
+</plist>
