@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .environmentObject(StorageService())
 
         let hostingController = NSHostingController(rootView: rootView)
+        hostingController.view.autoresizingMask = [.width, .height]
 
         let win = NSWindow(contentViewController: hostingController)
         win.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
