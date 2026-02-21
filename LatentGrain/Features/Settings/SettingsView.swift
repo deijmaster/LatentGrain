@@ -105,8 +105,10 @@ struct SettingsView: View {
                         .font(.system(.body, design: .monospaced))
                 }
                 LabeledContent("Website") {
-                    Link("latentgrain.app", destination: URL(string: "https://latentgrain.app")!)
-                        .font(.system(.body, design: .monospaced))
+                    if let url = URL(string: "https://latentgrain.app") {
+                        Link("latentgrain.app", destination: url)
+                            .font(.system(.body, design: .monospaced))
+                    }
                 }
             }
         }

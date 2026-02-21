@@ -43,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         watchObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in self?.syncWatchService() }
+        ) { [weak self] _ in Task { @MainActor [weak self] in self?.syncWatchService() } }
         syncWatchService()
     }
 
@@ -366,7 +366,7 @@ extension AppDelegate: NSWindowDelegate {
 
 // MARK: - UNUserNotificationCenterDelegate
 
-extension AppDelegate: UNUserNotificationCenterDelegate {
+extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
 
     /// Called when the user taps the notification — show the window with the pending diff.
     func userNotificationCenter(

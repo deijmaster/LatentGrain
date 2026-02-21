@@ -22,6 +22,12 @@ final class WatchService {
         self.onDiff  = onDiff
     }
 
+    deinit {
+        // Synchronously drain callbackQueue so no in-flight C callback can
+        // fire against freed memory after self is deallocated.
+        callbackQueue.sync { stopStream() }
+    }
+
     // MARK: - Public API (idempotent)
 
     func start() {
@@ -97,10 +103,13 @@ final class WatchService {
             flags
         ) else { return }
 
-        FSEventStreamSetDispatchQueue(newStream, callbackQueue)
-        FSEventStreamStart(newStream)
+        // Assign before scheduling so the reference is visible to any
+        // code that runs after FSEventStreamStart (serial queue guarantees
+        // ordering, but explicit assignment order removes all ambiguity).
         stream    = newStream
         isRunning = true
+        FSEventStreamSetDispatchQueue(newStream, callbackQueue)
+        FSEventStreamStart(newStream)
     }
 
     private func stopStream() {
