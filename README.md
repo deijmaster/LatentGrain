@@ -170,7 +170,7 @@ spctl -a -v LatentGrain.app
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+© 2026 deijmaster. All Rights Reserved — see [LICENSE](LICENSE).
 
 ---
 
