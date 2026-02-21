@@ -20,6 +20,9 @@ final class ScanViewModel: ObservableObject {
     var canShootAfter: Bool { beforeSnapshot != nil && !isScanning }
     var hasDiff: Bool       { currentDiff != nil }
 
+    /// True when there is a diff the user has not yet revealed — drives the orange dot.
+    var hasUnreadDiff: Bool { currentDiff != nil && !isDiffRevealed }
+
     // MARK: - Dependencies
 
     private let scanService  = ScanService()
@@ -47,6 +50,7 @@ final class ScanViewModel: ObservableObject {
             beforeSnapshot  = snapshot
             afterSnapshot   = nil
             currentDiff     = nil
+            storageService.clearPendingDiffPair()  // starting fresh — discard any pending watch diff
         } catch {
             scanError = error.localizedDescription
         }
@@ -62,11 +66,24 @@ final class ScanViewModel: ObservableObject {
         do {
             let snapshot = try await scanService.takeSnapshot(label: "After")
             afterSnapshot = snapshot
-            currentDiff   = diffService.diff(before: before, after: snapshot)
+            let diff      = diffService.diff(before: before, after: snapshot)
+            currentDiff   = diff
 
             // Persist both snapshots
             storageService.save(snapshot: before)
             storageService.save(snapshot: snapshot)
+
+            // Record this diff in history
+            storageService.saveDiffRecord(DiffRecord(
+                id:               UUID(),
+                beforeSnapshotID: before.id,
+                afterSnapshotID:  snapshot.id,
+                timestamp:        snapshot.timestamp,
+                addedCount:       diff.added.count,
+                removedCount:     diff.removed.count,
+                modifiedCount:    diff.modified.count,
+                source:           "Manual"
+            ))
         } catch {
             scanError = error.localizedDescription
         }
@@ -74,6 +91,7 @@ final class ScanViewModel: ObservableObject {
 
     func develop() {
         isDiffRevealed = true
+        storageService.clearPendingDiffPair()   // diff has been seen — clear the orange dot
     }
 
     func reset() {
@@ -82,6 +100,7 @@ final class ScanViewModel: ObservableObject {
         currentDiff    = nil
         scanError      = nil
         isDiffRevealed = false
+        storageService.clearPendingDiffPair()  // user started over — discard pending watch diff
     }
 
     /// Inject a diff produced by WatchService so ScanView routes to diffContent() automatically.
@@ -91,5 +110,11 @@ final class ScanViewModel: ObservableObject {
         afterSnapshot  = diff.after
         currentDiff    = diff
         isDiffRevealed = false
+    }
+
+    /// Called once on launch — restores any watch diff that was detected before the last quit.
+    func tryLoadPendingDiff() {
+        guard let diff = storageService.reconstructPendingDiff(using: diffService) else { return }
+        injectWatchDiff(diff)
     }
 }

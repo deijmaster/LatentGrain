@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var window: NSWindow?
     private var settingsWindow: NSWindow?
+    private var historyWindow: NSWindow?
+    private var onboardingWindow: NSWindow?
     private var scanViewModel = ScanViewModel()
     private var revealObserver: Any?
     private var iconObservers: Set<AnyCancellable> = []
@@ -21,9 +23,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupFocusObservers()
         setupIconObservers()
-        setupWatchService()
         UNUserNotificationCenter.current().delegate = self
-        Task { await checkForUpdate() }
+
+        if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
+            showOnboardingWindow()
+            // WatchService setup deferred to onComplete closure
+        } else {
+            setupWatchService()
+            scanViewModel.recheckFDA()
+            scanViewModel.tryLoadPendingDiff()
+            Task { await checkForUpdate() }
+        }
+    }
+
+    private func showOnboardingWindow() {
+        let rootView = OnboardingView { [weak self] in
+            guard let self else { return }
+            // orderOut hides without firing willCloseNotification — that observer is
+            // reserved for the × dismiss path only, to avoid double setupWatchService().
+            self.onboardingWindow?.orderOut(nil)
+            self.onboardingWindow = nil
+            self.setupWatchService()
+            self.scanViewModel.recheckFDA()
+            self.scanViewModel.tryLoadPendingDiff()
+            Task { await self.checkForUpdate() }
+            self.showWindow()
+        }
+        let controller = NSHostingController(rootView: rootView)
+        let win = NSWindow(contentViewController: controller)
+        win.styleMask = [.titled, .closable, .fullSizeContentView]
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.setContentSize(NSSize(width: 460, height: 460))
+        win.minSize = NSSize(width: 460, height: 460)
+        win.maxSize = NSSize(width: 460, height: 460)
+        win.appearance = NSAppearance(named: .darkAqua)
+        win.isReleasedWhenClosed = false
+        win.center()
+        // NOT .floating — must sit behind System Settings during the FDA step
+        onboardingWindow = win
+
+        // If user closes via × — mark complete and start WatchService without opening main window
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: win, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+                self.onboardingWindow = nil
+                self.setupWatchService()
+                self.scanViewModel.recheckFDA()
+                self.scanViewModel.tryLoadPendingDiff()
+            }
+        }
+
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func checkForUpdate() async {
@@ -110,6 +166,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openItem.target = self
         menu.addItem(openItem)
 
+        // Detection History
+        let recordCount = scanViewModel.storageService.diffRecords.count
+        let historyTitle = recordCount > 0
+            ? "Detection History (\(recordCount) detection\(recordCount == 1 ? "" : "s"))"
+            : "Detection History"
+        let historyItem = NSMenuItem(title: historyTitle, action: #selector(openHistory), keyEquivalent: "h")
+        historyItem.target = self
+        menu.addItem(historyItem)
+
         // GitHub
         let githubItem = NSMenuItem(title: "View on GitHub", action: #selector(openGitHub), keyEquivalent: "")
         githubItem.target = self
@@ -167,6 +232,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 
+    @objc private func openHistory() {
+        showHistoryWindow()
+    }
+
     @objc private func openGitHub() {
         guard let url = URL(string: "https://github.com/deijmaster/LatentGrain") else { return }
         NSWorkspace.shared.open(url)
@@ -181,20 +250,91 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showSettingsWindow(nil)
     }
 
+    func showHistoryWindow() {
+        // Bring existing window forward rather than recreating — preserves scroll position and selection.
+        // Check non-nil only (not isVisible) — makeKeyAndOrderFront also deminiaturizes.
+        if let existing = historyWindow {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let rootView = HistoryView(onClose: { [weak self] in
+            self?.historyWindow?.close()
+        })
+        .environmentObject(scanViewModel.storageService)
+
+        let controller = NSHostingController(rootView: rootView)
+        let win = NSWindow(contentViewController: controller)
+        win.title = "Detection History"
+        win.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.isMovableByWindowBackground = true
+        win.setContentSize(NSSize(width: 480, height: 560))
+        win.minSize = NSSize(width: 420, height: 400)
+        win.maxSize = NSSize(width: 600, height: 900)
+        win.appearance = NSAppearance(named: .darkAqua)
+        win.isReleasedWhenClosed = false
+        // Not floating — history sits at normal window level, independent of the scan window
+        positionHistoryWindow(win)
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: win, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.historyWindow = nil }
+        }
+
+        historyWindow = win
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Position the history window relative to the scan window when it's visible.
+    /// Prefers left of scan window (top-aligned); falls back to right if no room;
+    /// falls back to center() if no scan window is open or neither side fits.
+    private func positionHistoryWindow(_ win: NSWindow) {
+        guard let scanWin = window, scanWin.isVisible,
+              let screen = scanWin.screen ?? NSScreen.main else {
+            win.center()
+            return
+        }
+
+        let gap: CGFloat = 16
+        let sf  = scanWin.frame
+        let hf  = win.frame
+        let vis = screen.visibleFrame
+
+        // Top-align with the scan window, clamped so the bottom doesn't go off-screen
+        let originY = max(vis.minY, sf.maxY - hf.height)
+
+        let leftX  = sf.minX - hf.width - gap
+        let rightX = sf.maxX + gap
+
+        if leftX >= vis.minX {
+            win.setFrameOrigin(NSPoint(x: leftX, y: originY))
+        } else if rightX + hf.width <= vis.maxX {
+            win.setFrameOrigin(NSPoint(x: rightX, y: originY))
+        } else {
+            win.center()
+        }
+    }
+
     // Override SwiftUI's injected showSettingsWindow: so all settings routing
     // — whether from our menu item, ⌘,, or the SwiftUI responder chain —
     // goes through our own NSWindow instead of the Settings scene.
     @objc func showSettingsWindow(_ sender: Any?) {
-        if settingsWindow == nil {
-            let controller = NSHostingController(rootView: SettingsView())
-            let win = NSWindow(contentViewController: controller)
-            win.title = "LatentGrain Settings"
-            win.styleMask = [.titled, .closable]
-            win.setContentSize(NSSize(width: 420, height: 420))
-            win.isReleasedWhenClosed = false
-            win.appearance = NSAppearance(named: .darkAqua)
-            settingsWindow = win
-        }
+        // Always recreate — SettingsView must re-probe FDA state on every open.
+        // SwiftUI's onAppear only fires on first insertion into the hierarchy,
+        // so a cached NSHostingController would show stale FDA status on re-open.
+        let controller = NSHostingController(rootView: SettingsView())
+        let win = NSWindow(contentViewController: controller)
+        win.title = "LatentGrain Settings"
+        win.styleMask = [.titled, .closable]
+        win.setContentSize(NSSize(width: 420, height: 420))
+        win.isReleasedWhenClosed = true
+        win.appearance = NSAppearance(named: .darkAqua)
+        settingsWindow = win
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -234,8 +374,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeWindow() -> NSWindow {
-        let rootView = ScanView(viewModel: scanViewModel)
-            .environmentObject(StorageService())
+        let rootView = ScanView(viewModel: scanViewModel, onOpenHistory: { [weak self] in self?.showHistoryWindow() })
+            .environmentObject(scanViewModel.storageService)
 
         let hostingController = NSHostingController(rootView: rootView)
         hostingController.sizingOptions = []
@@ -306,6 +446,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupIconObservers() {
         scanViewModel.$isScanning
             .combineLatest(scanViewModel.$beforeSnapshot, scanViewModel.$currentDiff)
+            .combineLatest(scanViewModel.$isDiffRevealed)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &iconObservers)
@@ -314,7 +455,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateStatusIcon() {
         guard let layer = statusDotView?.layer else { return }
 
-        let isActive = scanViewModel.isScanning || (scanViewModel.beforeSnapshot != nil && scanViewModel.currentDiff == nil)
+        let isActive = scanViewModel.isScanning
+            || (scanViewModel.beforeSnapshot != nil && scanViewModel.currentDiff == nil)
+            || scanViewModel.hasUnreadDiff
         let dotColor: NSColor = isActive ? .systemOrange : .systemGreen
         let windowOpen = window?.isVisible ?? false
 

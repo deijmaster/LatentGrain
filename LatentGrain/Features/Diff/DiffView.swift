@@ -5,6 +5,7 @@ struct DiffView: View {
 
     let diff: PersistenceDiff
     let isRevealed: Bool
+    var showPolaroids: Bool = true
     let onDevelop: () -> Void
 
     @State private var searchText = ""
@@ -15,13 +16,43 @@ struct DiffView: View {
             || (item.programPath?.localizedCaseInsensitiveContains(searchText) ?? false)
     }
 
+    /// Autocomplete chips — driven by filenames, location names, and change keywords.
+    private var suggestions: [String] {
+        guard !searchText.isEmpty else { return [] }
+        let q = searchText.lowercased()
+        var pool: [String] = []
+
+        // Filenames from all changed items
+        let names = Set(
+            diff.added.map(\.filename) +
+            diff.removed.map(\.filename) +
+            diff.modified.map(\.after.filename)
+        )
+        pool += names.sorted()
+
+        // Location display names
+        pool += diff.after.groupedByLocation.keys.map(\.displayName)
+
+        // Change-type keywords
+        pool += ["added", "removed", "modified"]
+
+        return Array(Set(
+            pool.filter { $0.lowercased().contains(q) && $0.lowercased() != q }
+        ))
+        .sorted()
+        .prefix(6)
+        .map { $0 }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            polaroidPair
-                .padding(.top, 16)
-                .padding(.bottom, 16)
+            if showPolaroids {
+                polaroidPair
+                    .padding(.top, 16)
+                    .padding(.bottom, 16)
 
-            Divider()
+                Divider()
+            }
 
             resultsArea
                 .frame(maxHeight: .infinity)
@@ -52,30 +83,14 @@ struct DiffView: View {
             }
         } else {
             VStack(spacing: 0) {
-                // Search field
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                    TextField("Search findings…", text: $searchText)
-                        .font(.system(size: 12))
-                        .textFieldStyle(.plain)
-                    if !searchText.isEmpty {
-                        Button { searchText = "" } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.tertiary)
-                        }
-                        .buttonStyle(.plain)
-                        .focusable(false)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                SearchBar(
+                    text: $searchText,
+                    placeholder: "Search findings…",
+                    suggestions: suggestions
+                )
                 .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
 
                 Divider()
 

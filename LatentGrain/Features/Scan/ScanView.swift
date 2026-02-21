@@ -4,6 +4,7 @@ import AppKit
 struct ScanView: View {
 
     @ObservedObject var viewModel: ScanViewModel
+    var onOpenHistory: () -> Void = {}
     @AppStorage("proMode") private var proMode = false
     @AppStorage("fdaBannerDismissed") private var fdaBannerDismissed = false
 
@@ -12,6 +13,7 @@ struct ScanView: View {
     }
 
     var body: some View {
+        ZStack(alignment: .topTrailing) {
         VStack(spacing: 0) {
             if viewModel.isUpdateAvailable, let tag = viewModel.latestTag {
                 UpdateBanner(tag: tag) { viewModel.isUpdateAvailable = false }
@@ -19,6 +21,11 @@ struct ScanView: View {
 
             if showFDABanner {
                 FDABanner { fdaBannerDismissed = true }
+            }
+
+            let historyCount = viewModel.storageService.diffRecords.count
+            if historyCount > 0 {
+                HistoryBanner(count: historyCount) { onOpenHistory() }
             }
 
             if viewModel.currentDiff == nil {
@@ -41,6 +48,8 @@ struct ScanView: View {
             // Reset dismissed state when FDA is granted so the banner re-appears if revoked later.
             if granted { fdaBannerDismissed = false }
         }
+
+        } // ZStack
     }
 
 
@@ -59,7 +68,7 @@ struct ScanView: View {
             HStack {
                 Spacer()
                 Button(action: { viewModel.reset() }) {
-                    NavButton(label: "New Scan", direction: .forward)
+                    NavButton(label: "Reset & New Scan", direction: .forward)
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
@@ -121,6 +130,7 @@ struct ScanView: View {
                             .multilineTextAlignment(.center)
                     }
             }
+
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -549,6 +559,37 @@ struct NavButton: View {
         .padding(.vertical, 8)
         .background(.white.opacity(direction == .forward && !disabled ? 0.1 : 0.05))
         .clipShape(Capsule())
+    }
+}
+
+// MARK: - History Banner
+
+struct HistoryBanner: View {
+    let count: Int
+    let onOpen: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+
+            Text("\(count) past detection\(count == 1 ? "" : "s") recorded")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+
+            Spacer()
+
+            Button("View History →") { onOpen() }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+                .focusable(false)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
+        .overlay(alignment: .bottom) { Divider() }
     }
 }
 
