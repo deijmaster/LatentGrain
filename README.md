@@ -2,19 +2,20 @@
 
 > *The fine detail of what's hiding on your Mac.*
 
-I got tired of looking at my deamons and launch agents and love bananas - so I made this.
+I got tired of looking at deamons and launch agents on my macs, and yes, I love bananas - so I made this.
 
-LatentGrain is a macOS menu-bar utility that snapshots your Mac's entire persistence state — LaunchAgents, LaunchDaemons, Login Items, System Extensions — before and after any app install, then shows you exactly what changed in a Polaroid-style before/after UI.
+LatentGrain is a macOS menu-bar utility that snapshots your mac's key persistence state — LaunchAgents, LaunchDaemons, Login Items, System Extensions — before and after any app install or using the automatic scan (explicit permission required), then shows you exactly what changed in a Polaroid-style before/after UI.
 
 ---
 
 ## How it works
 
 1. **Shoot Before** — take a snapshot of all persistence locations before installing an app
-2. Install your app
+2. Install your app or anything else
 3. **Shoot After** — take a second snapshot
 4. **Develop** — two Polaroid cards reveal what was there before and after, followed by a full diff of exactly what changed
 5. **Scan** — LatentGrain can also (with explicit permission) detect **added**, **removed**, and **modified** items
+6. **Pro mode** - You already know everything? You know Siri will never work correctly? Great we have a pro mode for you
 
 No alarmism. No bloat. Just the facts.
 
