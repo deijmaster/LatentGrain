@@ -40,8 +40,8 @@ No alarmism. No bloat. Just the facts.
 | `~/Library/LaunchAgents` | User — no elevation needed |
 | `/Library/LaunchAgents` | User-readable |
 | `/Library/SystemExtensions` | User-readable |
-| `/Library/LaunchDaemons` | Privileged helper *(Phase 2)* |
-| Background Task Management DB | Full Disk Access *(Phase 2)* |
+| `/Library/LaunchDaemons` | Privileged helper |
+| Background Task Management DB | Full Disk Access |
 
 ---
 
@@ -97,7 +97,7 @@ LatentGrainHelper            ← Privileged XPC helper (Phase 2)
 ## Roadmap
 
 - [x] **Phase 1** — Core MVP: scan, diff, Polaroid UI, menu-bar app
-- [ ] **Phase 2** — Privileged helper for `/Library/LaunchDaemons` + Full Disk Access onboarding
+- [x] **Phase 2** — Privileged helper for `/Library/LaunchDaemons` + Full Disk Access onboarding
 - [ ] **Phase 3** — App icon, onboarding flow, animation polish
 - [ ] **Phase 4** — Snapshot history, export (PDF/JSON), auto-scan on install *(freemium)*
 - [ ] **Phase 5** — Developer ID signing, notarization, DMG distribution
@@ -174,4 +174,4 @@ MIT — see [LICENSE](LICENSE).
 
 ---
 
-*Built with Swift + SwiftUI. No Electron was harmed in the making of this app.*
+*Built in Montreal with love using with Swift + SwiftUI. No Electron was harmed in the making of this app.*
