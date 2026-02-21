@@ -40,3 +40,6 @@ Pods/
 *.p12
 *.cer
 *.mobileprovision
+
+# Claude Code project context — local only
+CLAUDE.md
