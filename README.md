@@ -14,6 +14,7 @@ LatentGrain is a macOS menu-bar utility that snapshots your Mac's entire persist
 2. Install your app
 3. **Shoot After** — take a second snapshot
 4. **Develop** — two Polaroid cards reveal what was there before and after, followed by a full diff of exactly what changed
+5. **Scan** — LatentGrain can also (with explicit permission) detect **added**, **removed**, and **modified** items
 
 No alarmism. No bloat. Just the facts.
 
@@ -28,7 +29,6 @@ No alarmism. No bloat. Just the facts.
 - Highlights items that run at login or are configured to stay alive
 - Reveal in Finder for any item with one click
 - Quick-access shortcuts to every persistence folder in the toolbar
-- Vertically resizable window — scroll through long diffs comfortably
 - Clean, Apple-native UI — no Electron, no web views
 
 ---
@@ -40,8 +40,8 @@ No alarmism. No bloat. Just the facts.
 | `~/Library/LaunchAgents` | User — no elevation needed |
 | `/Library/LaunchAgents` | User-readable |
 | `/Library/SystemExtensions` | User-readable |
-| `/Library/LaunchDaemons` | Privileged helper *(Phase 2)* |
-| Background Task Management DB | Full Disk Access *(Phase 2)* |
+| `/Library/LaunchDaemons` | Privileged helper |
+| Background Task Management DB | Full Disk Access |
 
 ---
 
@@ -97,9 +97,9 @@ LatentGrainHelper            ← Privileged XPC helper (Phase 2)
 ## Roadmap
 
 - [x] **Phase 1** — Core MVP: scan, diff, Polaroid UI, menu-bar app
-- [ ] **Phase 2** — Privileged helper for `/Library/LaunchDaemons` + Full Disk Access onboarding
-- [ ] **Phase 3** — App icon, onboarding flow, animation polish
-- [ ] **Phase 4** — Snapshot history, export (PDF/JSON), auto-scan on install *(freemium)*
+- [x] **Phase 2** — Privileged helper for `/Library/LaunchDaemons` + Full Disk Access onboarding
+- [x] **Phase 3** — App icon, onboarding flow, animation polish
+- [x] **Phase 4** — Snapshot history, export (PDF/JSON), auto-scan on install *(freemium)*
 - [ ] **Phase 5** — Developer ID signing, notarization, DMG distribution
 
 ---
@@ -166,9 +166,7 @@ spctl -a -v LatentGrain.app
 > ```
 > Generate the app-specific password at [appleid.apple.com](https://appleid.apple.com).
 
----
-
-## License
+Made with love in Montreal.
 
 Source available, non-commercial — © 2026 deijmaster. Personal use and forks welcome. Commercial use requires written permission. See [LICENSE](LICENSE).
 
