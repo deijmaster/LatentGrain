@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import Combine
+import UserNotifications
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -9,10 +11,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var scanViewModel = ScanViewModel()
     private var revealObserver: Any?
+    private var iconObservers: Set<AnyCancellable> = []
+    private var statusDotView: NSView?
+    private var watchService: WatchService?
+    private var watchObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
+        setupFocusObservers()
+        setupIconObservers()
+        setupWatchService()
+        UNUserNotificationCenter.current().delegate = self
         Task { await checkForUpdate() }
     }
 
@@ -20,6 +30,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let tag = await UpdateChecker.shared.fetchLatestTagIfNewer() else { return }
         scanViewModel.isUpdateAvailable = true
         scanViewModel.latestTag = tag
+    }
+
+    // MARK: - Watch service
+
+    private func setupWatchService() {
+        watchService = WatchService(storage: scanViewModel.storageService) { [weak self] diff in
+            DispatchQueue.main.async {
+                self?.scanViewModel.injectWatchDiff(diff)
+                self?.showWindow()
+            }
+        }
+        watchObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.syncWatchService() }
+        syncWatchService()
+    }
+
+    private func syncWatchService() {
+        let enabled = UserDefaults.standard.bool(forKey: "autoScanEnabled")
+        let premium = UserDefaults.standard.bool(forKey: "proMode")
+        if enabled && premium { watchService?.start() } else { watchService?.stop() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -38,6 +69,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.action = #selector(handleClick)
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.target = self
+
+        // Dot overlay — sits center-right of the icon, colour updated by updateStatusIcon()
+        let dot = NSView(frame: NSRect(x: 12, y: 5, width: 7, height: 7))
+        dot.wantsLayer = true
+        dot.layer?.cornerRadius = 3.5
+        dot.layer?.backgroundColor = NSColor.systemGreen.cgColor
+        button.addSubview(dot)
+        statusDotView = dot
     }
 
     @objc private func handleClick() {
@@ -96,6 +135,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
+        // Pro Mode toggle
+        let proModeOn = UserDefaults.standard.bool(forKey: "proMode")
+        let proItem = NSMenuItem(title: "Pro Mode", action: #selector(toggleProMode), keyEquivalent: "p")
+        proItem.target = self
+        proItem.state = proModeOn ? .on : .off
+        menu.addItem(proItem)
+
         // Settings
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -126,6 +172,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(url)
     }
 
+    @objc private func toggleProMode() {
+        let current = UserDefaults.standard.bool(forKey: "proMode")
+        UserDefaults.standard.set(!current, forKey: "proMode")
+    }
+
     @objc private func openSettings() {
         showSettingsWindow(nil)
     }
@@ -153,6 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleWindow() {
         if let window, window.isVisible {
             window.orderOut(nil)
+            updateStatusIcon()
         } else {
             showWindow()
         }
@@ -178,6 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ctx.duration = 0.15
             window.animator().alphaValue = 1
         }
+        updateStatusIcon()
     }
 
     private func makeWindow() -> NSWindow {
@@ -227,7 +280,80 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return win
     }
 
-    @objc func windowWillClose(_ notification: Notification) {}
+    @objc func windowWillClose(_ notification: Notification) {
+        updateStatusIcon()
+    }
+
+    // MARK: - Focus fade
+
+    private func setupFocusObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidResignActive),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive),
+            name: NSApplication.didBecomeActiveNotification,
+            object: nil
+        )
+    }
+
+    // MARK: - Icon state
+
+    private func setupIconObservers() {
+        scanViewModel.$isScanning
+            .combineLatest(scanViewModel.$beforeSnapshot, scanViewModel.$currentDiff)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateStatusIcon() }
+            .store(in: &iconObservers)
+    }
+
+    private func updateStatusIcon() {
+        guard let layer = statusDotView?.layer else { return }
+
+        let isActive = scanViewModel.isScanning || (scanViewModel.beforeSnapshot != nil && scanViewModel.currentDiff == nil)
+        let dotColor: NSColor = isActive ? .systemOrange : .systemGreen
+        let windowOpen = window?.isVisible ?? false
+
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(0.2)
+        if windowOpen {
+            // Filled dot — window is open
+            layer.backgroundColor = dotColor.cgColor
+            layer.borderColor = dotColor.cgColor
+            layer.borderWidth = 0
+        } else {
+            // Ring dot — app running, window closed
+            layer.backgroundColor = CGColor.clear
+            layer.borderColor = dotColor.cgColor
+            layer.borderWidth = 1.5
+        }
+        CATransaction.commit()
+    }
+
+    @objc private func appDidResignActive() {
+        guard let window, window.isVisible else { return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.2
+            window.animator().alphaValue = 0.82
+        }
+    }
+
+    @objc private func appDidBecomeActive() {
+        scanViewModel.recheckFDA()
+        let newFDA = FDAService.isGranted
+        if newFDA != watchService?.lastKnownFDAState {
+            watchService?.restartWithCurrentFDAState()
+        }
+        guard let window, window.isVisible else { return }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.15
+            window.animator().alphaValue = 1.0
+        }
+    }
 }
 
 // MARK: - NSWindowDelegate
@@ -235,5 +361,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSWindowDelegate {
     func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
         NSSize(width: sender.frame.width, height: frameSize.height)
+    }
+}
+
+// MARK: - UNUserNotificationCenterDelegate
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+
+    /// Called when the user taps the notification — show the window with the pending diff.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if response.notification.request.content.userInfo["action"] as? String == "showDiff" {
+            if let diff = watchService?.pendingDiff {
+                scanViewModel.injectWatchDiff(diff)
+            }
+            watchService?.clearPendingDiff()
+            showWindow()
+        }
+        completionHandler()
+    }
+
+    /// Show banner + play sound even when the app is frontmost.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 }

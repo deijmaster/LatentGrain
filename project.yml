@@ -39,6 +39,8 @@ targets:
     dependencies:
       - target: LatentGrainHelper
         embed: true
+      - sdk: CoreServices.framework
+      - sdk: UserNotifications.framework
 
   # ─── Privileged XPC Helper ──────────────────────────────────────
   LatentGrainHelper:

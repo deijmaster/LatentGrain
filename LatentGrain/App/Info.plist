@@ -29,6 +29,12 @@
     <string>LatentGrain reads persistence configuration files to detect what changed on your Mac.</string>
     <key>NSSystemAdministrationUsageDescription</key>
     <string>LatentGrain needs privileged access to scan system-level LaunchDaemons.</string>
+    <key>NSFileManagerUsageDescription</key>
+    <string>LatentGrain scans Background Task Management to show you every background agent and login item installed on your Mac.</string>
+
+    <!-- Notification usage — background persistence monitoring -->
+    <key>NSUserNotificationUsageDescription</key>
+    <string>LatentGrain notifies you when new background agents are installed on your Mac.</string>
 
     <!-- Copyright -->
     <key>NSHumanReadableCopyright</key>

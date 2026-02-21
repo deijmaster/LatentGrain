@@ -67,6 +67,7 @@ struct DiffView: View {
                                 .foregroundStyle(.tertiary)
                         }
                         .buttonStyle(.plain)
+                        .focusable(false)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -260,6 +261,7 @@ struct ItemRow: View {
                 Button("Open") { revealInFinder() }
                     .font(.system(size: 10, weight: .medium))
                     .buttonStyle(.plain)
+                    .focusable(false)
                     .foregroundStyle(isHovered ? Color.accentColor : .secondary)
                     .onHover { isHovered = $0 }
             }

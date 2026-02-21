@@ -13,6 +13,7 @@ final class ScanViewModel: ObservableObject {
     @Published var isDiffRevealed: Bool = false
     @Published var isUpdateAvailable: Bool = false
     @Published var latestTag: String? = nil
+    @Published var isFDAGranted: Bool = FDAService.isGranted
 
     // MARK: - Derived
 
@@ -31,7 +32,12 @@ final class ScanViewModel: ObservableObject {
 
     // MARK: - Actions
 
+    func recheckFDA() {
+        isFDAGranted = FDAService.isGranted
+    }
+
     func shootBefore() async {
+        recheckFDA()
         isScanning = true
         scanError  = nil
         defer { isScanning = false }
@@ -48,6 +54,7 @@ final class ScanViewModel: ObservableObject {
 
     func shootAfter() async {
         guard let before = beforeSnapshot else { return }
+        recheckFDA()
         isScanning = true
         scanError  = nil
         defer { isScanning = false }
@@ -74,6 +81,15 @@ final class ScanViewModel: ObservableObject {
         afterSnapshot  = nil
         currentDiff    = nil
         scanError      = nil
+        isDiffRevealed = false
+    }
+
+    /// Inject a diff produced by WatchService so ScanView routes to diffContent() automatically.
+    /// The user still presses "Develop" to trigger the reveal animation.
+    func injectWatchDiff(_ diff: PersistenceDiff) {
+        beforeSnapshot = diff.before
+        afterSnapshot  = diff.after
+        currentDiff    = diff
         isDiffRevealed = false
     }
 }

@@ -4,11 +4,21 @@ import AppKit
 struct ScanView: View {
 
     @ObservedObject var viewModel: ScanViewModel
+    @AppStorage("proMode") private var proMode = false
+    @AppStorage("fdaBannerDismissed") private var fdaBannerDismissed = false
+
+    private var showFDABanner: Bool {
+        !viewModel.isFDAGranted && !fdaBannerDismissed
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             if viewModel.isUpdateAvailable, let tag = viewModel.latestTag {
                 UpdateBanner(tag: tag) { viewModel.isUpdateAvailable = false }
+            }
+
+            if showFDABanner {
+                FDABanner { fdaBannerDismissed = true }
             }
 
             if viewModel.currentDiff == nil {
@@ -26,6 +36,11 @@ struct ScanView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear { viewModel.recheckFDA() }
+        .onChange(of: viewModel.isFDAGranted) { granted in
+            // Reset dismissed state when FDA is granted so the banner re-appears if revoked later.
+            if granted { fdaBannerDismissed = false }
+        }
     }
 
 
@@ -59,22 +74,26 @@ struct ScanView: View {
     private var scanControls: some View {
         VStack(spacing: 0) {
             // Status area
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 6) {
-                    if viewModel.isScanning {
-                        Text("Scanning…")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .padding(16)
-                    } else if let before = viewModel.beforeSnapshot {
-                        BeforeReadyView(snapshot: before)
-                            .padding(.vertical, 12)
-                    } else {
-                        ReadyToShootView()
-                            .padding(.vertical, 12)
+            if proMode {
+                ProStatusView(snapshot: viewModel.beforeSnapshot, isScanning: viewModel.isScanning)
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 6) {
+                        if viewModel.isScanning {
+                            Text("Scanning…")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .padding(16)
+                        } else if let before = viewModel.beforeSnapshot {
+                            BeforeReadyView(snapshot: before)
+                                .padding(.vertical, 12)
+                        } else {
+                            ReadyToShootView()
+                                .padding(.vertical, 12)
+                        }
                     }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
             }
 
             // Action area — one primary action at a time
@@ -369,10 +388,46 @@ enum ConversationScript {
     ]
 }
 
+// MARK: - Pro Mode status view
+
+struct ProStatusView: View {
+    let snapshot: PersistenceSnapshot?
+    let isScanning: Bool
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Spacer()
+            if isScanning {
+                Text("Scanning…")
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            } else if let snapshot {
+                Text("\(snapshot.itemCount) items catalogued")
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.primary)
+                Text("Ready — hit Shoot when your app is installed.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Ready to snapshot.")
+                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.primary)
+                Text("Hit Shoot before you install anything.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .multilineTextAlignment(.center)
+    }
+}
+
 // MARK: - Status sub-views
 
 struct ReadyToShootView: View {
     @State private var script: [ChatLine] = []
+    @AppStorage("proMode") private var proMode = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -382,6 +437,9 @@ struct ReadyToShootView: View {
                 } else {
                     UserBubble(text: line.text)
                 }
+            }
+            if !proMode {
+                ExpertBubble(text: "Been here before? You can skip all this — enable Pro Mode in Settings.")
             }
         }
         .padding(.horizontal, 16)
@@ -516,6 +574,7 @@ struct UpdateBanner: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.green)
                 .buttonStyle(.plain)
+                .focusable(false)
 
             Button { onDismiss() } label: {
                 Image(systemName: "xmark")
@@ -523,6 +582,7 @@ struct UpdateBanner: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .focusable(false)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
@@ -535,5 +595,54 @@ struct UpdateBanner: View {
     private func openReleasePage() {
         guard let url = URL(string: "https://github.com/deijmaster/LatentGrain/releases/tag/\(tag)") else { return }
         NSWorkspace.shared.open(url)
+    }
+}
+
+// MARK: - FDA Banner
+
+struct FDABanner: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(.orange)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Background Task Management not scanned")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                Text("Grant access — we'll open Settings and highlight the app in Finder so you can drag it straight in.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button("Grant Access →") { openPrivacySettings() }
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.orange)
+                .buttonStyle(.plain)
+                .focusable(false)
+
+            Button { onDismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .focusable(false)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(Color.orange.opacity(0.08))
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
+    private func openPrivacySettings() {
+        FDAService.openFDASettings()
     }
 }

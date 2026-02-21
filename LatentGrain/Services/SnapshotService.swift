@@ -13,6 +13,11 @@ actor SnapshotService {
             items.append(contentsOf: locationItems)
         }
 
+        if FDAService.isGranted {
+            let btmItems = (try? await scanBTMLocation()) ?? []
+            items.append(contentsOf: btmItems)
+        }
+
         let sorted = items.sorted { $0.fullPath < $1.fullPath }
         let combinedHashes = sorted.map(\.contentsHash).joined()
         let snapshotHash = FileHasher.sha256(of: Data(combinedHashes.utf8))
@@ -43,6 +48,49 @@ actor SnapshotService {
         return contents
             .filter { $0.pathExtension == "plist" }
             .compactMap { makeItem(from: $0, location: location) }
+    }
+
+    /// Recursively scans the BTM directory up to 2 levels deep, collecting .plist files.
+    private func scanBTMLocation() async throws -> [PersistenceItem] {
+        let location = PersistenceLocation.backgroundTaskMgmt
+        let rootURL = URL(fileURLWithPath: location.resolvedPath)
+        guard FileManager.default.fileExists(atPath: rootURL.path) else { return [] }
+
+        var result: [PersistenceItem] = []
+
+        let level1 = (try? FileManager.default.contentsOfDirectory(
+            at: rootURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+
+        for entry in level1 {
+            let isDir = (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if isDir {
+                let level2 = (try? FileManager.default.contentsOfDirectory(
+                    at: entry,
+                    includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey],
+                    options: [.skipsHiddenFiles]
+                )) ?? []
+                for file in level2 where Self.isScannable(file) {
+                    if let item = makeItem(from: file, location: location) {
+                        result.append(item)
+                    }
+                }
+            } else if Self.isScannable(entry) {
+                if let item = makeItem(from: entry, location: location) {
+                    result.append(item)
+                }
+            }
+        }
+
+        return result
+    }
+
+    /// Files worth tracking in the BTM directory. Plist + btm (Apple's BTM binary database).
+    /// We don't parse .btm contents — the SHA-256 hash changing is the signal that matters.
+    private static func isScannable(_ url: URL) -> Bool {
+        ["plist", "btm"].contains(url.pathExtension)
     }
 
     private func makeItem(from url: URL, location: PersistenceLocation) -> PersistenceItem? {

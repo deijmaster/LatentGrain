@@ -5,6 +5,7 @@ struct SettingsView: View {
 
     @AppStorage("launchAtLogin")    private var launchAtLogin    = false
     @AppStorage("autoScanEnabled")  private var autoScanEnabled  = false
+    @AppStorage("proMode")          private var proMode          = false
 
     var body: some View {
         Form {
@@ -17,13 +18,26 @@ struct SettingsView: View {
                         applyLaunchAtLogin(enabled: newValue)
                     }
                 ))
+                Toggle("Pro Mode", isOn: $proMode)
+                    .help("Skip the guided chat — just the step indicator and action buttons.")
             }
 
             // MARK: Scanning
             Section("Scanning") {
-                Toggle("Auto-scan on App Install  (Premium)", isOn: .constant(false))
-                    .disabled(true)
-                    .help("Detects persistence changes automatically — Premium feature")
+                Toggle(isOn: $autoScanEnabled) {
+                    HStack(spacing: 6) {
+                        Text("Auto-scan on App Install")
+                        Text("PREMIUM")
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.8))
+                            .clipShape(Capsule())
+                    }
+                }
+                .disabled(!proMode)
+                .onChange(of: autoScanEnabled) { if $0 && !proMode { autoScanEnabled = false } }
+                .help("Watches persistence directories in the background and notifies you when something changes — Premium feature")
 
                 LabeledContent("Monitored Locations") {
                     VStack(alignment: .trailing, spacing: 4) {
@@ -51,11 +65,33 @@ struct SettingsView: View {
 
             // MARK: Privacy
             Section("Privacy") {
-                Button("Request Full Disk Access…") {
-                    guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") else { return }
-                    NSWorkspace.shared.open(url)
+                LabeledContent("Full Disk Access") {
+                    if FDAService.isGranted {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text("Granted")
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.system(size: 12))
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "lock.fill")
+                                .foregroundStyle(.orange)
+                            Text("Not granted")
+                                .foregroundStyle(.secondary)
+                            Button("Open Settings →") {
+                                FDAService.openFDASettings()
+                            }
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.orange)
+                            .buttonStyle(.plain)
+                            .focusable(false)
+                        }
+                        .font(.system(size: 12))
+                    }
                 }
-                .help("Needed to scan /Library/LaunchDaemons and Background Task Management")
+                .help("Needed to scan Background Task Management (/private/var/db/com.apple.backgroundtaskmanagement)")
             }
 
             // MARK: About
