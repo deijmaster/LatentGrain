@@ -170,7 +170,7 @@ spctl -a -v LatentGrain.app
 
 ## License
 
-© 2026 deijmaster. All Rights Reserved — see [LICENSE](LICENSE).
+Source available, non-commercial — © 2026 deijmaster. Personal use and forks welcome. Commercial use requires written permission. See [LICENSE](LICENSE).
 
 ---
 
