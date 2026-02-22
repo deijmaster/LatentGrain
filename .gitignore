@@ -43,3 +43,4 @@ Pods/
 
 # Claude Code project context — local only
 CLAUDE.md
+.claude/
