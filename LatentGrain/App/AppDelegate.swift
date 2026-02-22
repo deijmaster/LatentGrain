@@ -121,13 +121,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.target = self
 
-        // Dot overlay — centred inside the photo frame of the polaroid icon
-        let dot = NSView(frame: NSRect(x: 10, y: 13, width: 5, height: 5))
+        // Dot position is computed dynamically once the button has been laid out,
+        // so it stays centred in the photo frame regardless of menu bar height.
+        DispatchQueue.main.async { [weak self] in
+            self?.addDotOverlay(to: button)
+        }
+    }
+
+    private func addDotOverlay(to button: NSButton) {
+        let buttonSize = button.bounds.size
+        guard buttonSize.width > 0, buttonSize.height > 0 else { return }
+
+        // The MenuBarIcon image is always rendered at 18×18pt, centred in the button.
+        let imageSize: CGFloat = 18
+        let imgX = (buttonSize.width  - imageSize) / 2
+        let imgY = (buttonSize.height - imageSize) / 2
+
+        // Photo area centre within the 18pt image (from the generation script geometry):
+        //   pad=1 → frame_h=16, frame_w=13, fx=2, fy=1
+        //   margin_lr=1, margin_top=1, margin_bot=4 → photo 11×11 at image (3, 2) top-left
+        //   centre in image coords (x from left, y from bottom of 18pt image):
+        //     x = 3 + 5.5 = 8.5
+        //     y = (18 - 2 - 5.5) = 10.5   ← NSView y grows upward
+        let photoCentreInImageX: CGFloat = 8.5
+        let photoCentreInImageY: CGFloat = 10.5
+
+        let dotSize: CGFloat = 5
+        let cx = imgX + photoCentreInImageX
+        let cy = imgY + photoCentreInImageY
+
+        let dot = NSView(frame: NSRect(
+            x: cx - dotSize / 2,
+            y: cy - dotSize / 2,
+            width:  dotSize,
+            height: dotSize
+        ))
         dot.wantsLayer = true
-        dot.layer?.cornerRadius = 2.5
+        dot.layer?.cornerRadius = dotSize / 2
         dot.layer?.backgroundColor = NSColor.systemGreen.cgColor
         button.addSubview(dot)
         statusDotView = dot
+        updateStatusIcon()
     }
 
     @objc private func handleClick() {
