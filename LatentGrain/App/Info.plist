@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
     <!-- App identity -->
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>com.latentgrain.app</string>
     <key>CFBundleName</key>
