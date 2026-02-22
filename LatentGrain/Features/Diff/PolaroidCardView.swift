@@ -6,8 +6,8 @@ struct PolaroidCardView: View {
     let snapshot: PersistenceSnapshot?
     let isRevealed: Bool
 
-    private let cardWidth: CGFloat   = 190
-    private let photoHeight: CGFloat = 150
+    private let cardWidth: CGFloat   = 148
+    private let photoHeight: CGFloat = 110
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,22 +59,22 @@ struct PolaroidCardView: View {
     }
 
     private func revealedContent(_ snapshot: PersistenceSnapshot) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 3) {
             Text("\(snapshot.itemCount)")
-                .font(.system(size: 42, weight: .bold, design: .rounded))
+                .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundStyle(Color(red: 0.15, green: 0.15, blue: 0.15))
             Text("items")
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(Color(red: 0.45, green: 0.42, blue: 0.38))
                 .textCase(.uppercase)
                 .kerning(1.5)
 
             Rectangle()
                 .fill(Color(red: 0.75, green: 0.70, blue: 0.62))
-                .frame(width: 80, height: 0.5)
-                .padding(.vertical, 4)
+                .frame(width: 60, height: 0.5)
+                .padding(.vertical, 3)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 ForEach(
                     snapshot.groupedByLocation
                         .sorted(by: { $0.key.rawValue < $1.key.rawValue }),
@@ -82,19 +82,19 @@ struct PolaroidCardView: View {
                 ) { location, items in
                     HStack {
                         Text(location.displayName)
-                            .font(.system(size: 8))
+                            .font(.system(size: 7))
                             .foregroundStyle(Color(red: 0.45, green: 0.42, blue: 0.38))
                             .lineLimit(1)
                         Spacer()
                         Text("\(items.count)")
-                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 7, weight: .semibold, design: .monospaced))
                             .foregroundStyle(Color(red: 0.35, green: 0.32, blue: 0.28))
                     }
-                    .frame(width: 145)
+                    .frame(width: 110)
                 }
             }
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 6)
     }
 
     // MARK: - Matte area (the white Polaroid border at the bottom)
@@ -118,8 +118,8 @@ struct PolaroidCardView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.top, 8)
-        .padding(.bottom, 14)
+        .padding(.horizontal, 10)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
     }
 }

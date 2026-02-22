@@ -48,8 +48,8 @@ struct DiffView: View {
         VStack(spacing: 0) {
             if showPolaroids {
                 polaroidPair
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 12)
 
                 Divider()
             }
@@ -60,7 +60,7 @@ struct DiffView: View {
     }
 
     private var polaroidPair: some View {
-        HStack(alignment: .bottom, spacing: 20) {
+        HStack(alignment: .bottom, spacing: 16) {
             PolaroidCardView(title: "BEFORE", snapshot: diff.before, isRevealed: isRevealed)
                 .rotationEffect(.degrees(-2))
             PolaroidCardView(title: "AFTER",  snapshot: diff.after,  isRevealed: isRevealed)
