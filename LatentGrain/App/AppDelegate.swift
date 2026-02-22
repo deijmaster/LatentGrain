@@ -14,7 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var scanViewModel = ScanViewModel()
     private var revealCancellable: AnyCancellable?
     private var iconObservers: Set<AnyCancellable> = []
-    private var statusDotView: NSView?
+    private var appearanceObserver: NSKeyValueObservation?
     private var watchService: WatchService?
     private var watchObserver: Any?
 
@@ -114,53 +114,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem?.button else { return }
 
-        let icon = NSImage(named: "MenuBarIcon")
-        icon?.isTemplate = true
-        button.image = icon
         button.action = #selector(handleClick)
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.target = self
 
-        // Dot position is computed dynamically once the button has been laid out,
-        // so it stays centred in the photo frame regardless of menu bar height.
-        DispatchQueue.main.async { [weak self] in
-            self?.addDotOverlay(to: button)
+        // Redraw when system appearance flips (light ↔ dark menu bar)
+        appearanceObserver = NSApp.observe(\.effectiveAppearance, options: []) { [weak self] _, _ in
+            self?.updateStatusIcon()
         }
-    }
 
-    private func addDotOverlay(to button: NSButton) {
-        let buttonSize = button.bounds.size
-        guard buttonSize.width > 0, buttonSize.height > 0 else { return }
-
-        // The MenuBarIcon image is always rendered at 18×18pt, centred in the button.
-        let imageSize: CGFloat = 18
-        let imgX = (buttonSize.width  - imageSize) / 2
-        let imgY = (buttonSize.height - imageSize) / 2
-
-        // Photo area centre within the 18pt image (from the generation script geometry):
-        //   pad=1 → frame_h=16, frame_w=13, fx=2, fy=1
-        //   margin_lr=1, margin_top=1, margin_bot=4 → photo 11×11 at image (3, 2) top-left
-        //   centre in image coords (x from left, y from bottom of 18pt image):
-        //     x = 3 + 5.5 = 8.5
-        //     y = (18 - 2 - 5.5) = 10.5   ← NSView y grows upward
-        let photoCentreInImageX: CGFloat = 8.5
-        let photoCentreInImageY: CGFloat = 10.5
-
-        let dotSize: CGFloat = 5
-        let cx = imgX + photoCentreInImageX
-        let cy = imgY + photoCentreInImageY
-
-        let dot = NSView(frame: NSRect(
-            x: cx - dotSize / 2,
-            y: cy - dotSize / 2,
-            width:  dotSize,
-            height: dotSize
-        ))
-        dot.wantsLayer = true
-        dot.layer?.cornerRadius = dotSize / 2
-        dot.layer?.backgroundColor = NSColor.systemGreen.cgColor
-        button.addSubview(dot)
-        statusDotView = dot
         updateStatusIcon()
     }
 
@@ -422,26 +384,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateStatusIcon() {
-        guard let layer = statusDotView?.layer else { return }
+        guard let button = statusItem?.button else { return }
 
-        let isActive = scanViewModel.isScanning
-            || (scanViewModel.beforeSnapshot != nil && scanViewModel.currentDiff == nil)
-            || scanViewModel.hasUnreadDiff
-        let dotColor: NSColor = isActive ? .systemOrange : .systemGreen
+        let isActive   = scanViewModel.isScanning
+                      || (scanViewModel.beforeSnapshot != nil && scanViewModel.currentDiff == nil)
+                      || scanViewModel.hasUnreadDiff
+        let dotColor   = isActive ? NSColor.systemOrange : NSColor.systemGreen
         let popoverOpen = popover?.isShown ?? false
 
-        CATransaction.begin()
-        CATransaction.setAnimationDuration(0.2)
-        if popoverOpen {
-            layer.backgroundColor = dotColor.cgColor
-            layer.borderColor     = dotColor.cgColor
-            layer.borderWidth     = 0
-        } else {
-            layer.backgroundColor = CGColor.clear
-            layer.borderColor     = dotColor.cgColor
-            layer.borderWidth     = 1.5
+        button.image = makeMenuBarImage(dotColor: dotColor, filled: popoverOpen)
+    }
+
+    /// Renders the polaroid frame + status dot into a single 18×18pt image.
+    /// Dot coordinates are in image space — no button-offset guesswork.
+    private func makeMenuBarImage(dotColor: NSColor, filled: Bool) -> NSImage {
+        let dim: CGFloat = 18
+        let size = NSSize(width: dim, height: dim)
+
+        return NSImage(size: size, flipped: false) { [weak self] _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext,
+                  let base = NSImage(named: "MenuBarIcon"),
+                  let mask = base.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            else { return false }
+
+            // Tint the polaroid frame to match the menu bar appearance
+            let isDark = NSApp.effectiveAppearance
+                .bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let frameColor = isDark ? NSColor.white : NSColor.black
+
+            // Clip to the icon's alpha channel, then flood-fill with the tint colour
+            ctx.saveGState()
+            ctx.clip(to: CGRect(origin: .zero, size: CGSize(width: dim, height: dim)),
+                     mask: mask)
+            ctx.setFillColor(frameColor.cgColor)
+            ctx.fill([CGRect(origin: .zero, size: CGSize(width: dim, height: dim))])
+            ctx.restoreGState()
+
+            // Photo area centre in 18pt image coords (x from left, y from bottom):
+            //   pad=1 → frame_h=16, frame_w=13 centred → fx=2, fy=1 (from top)
+            //   margin_lr=1, margin_top=1, margin_bot=4 → photo 11×11, top-left at (3,2)
+            //   centre x = 3 + 5.5 = 8.5
+            //   centre y (NSImage, from bottom) = 18 − 2 − 5.5 = 10.5
+            let cx: CGFloat = 8.5
+            let cy: CGFloat = 10.5
+            let r:  CGFloat = 2.5   // dot radius
+
+            if filled {
+                ctx.setFillColor(dotColor.cgColor)
+                ctx.fillEllipse(in: CGRect(x: cx - r, y: cy - r,
+                                           width: r * 2, height: r * 2))
+            } else {
+                // Ring style when popover is closed
+                ctx.setStrokeColor(dotColor.cgColor)
+                ctx.setLineWidth(1.2)
+                ctx.strokeEllipse(in: CGRect(x: cx - r + 0.6, y: cy - r + 0.6,
+                                             width: (r - 0.6) * 2, height: (r - 0.6) * 2))
+            }
+
+            return true
         }
-        CATransaction.commit()
     }
 
     @objc private func appDidBecomeActive() {
