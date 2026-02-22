@@ -13,20 +13,9 @@ struct ScanView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
         VStack(spacing: 0) {
-            if viewModel.isUpdateAvailable, let tag = viewModel.latestTag {
-                UpdateBanner(tag: tag) { viewModel.isUpdateAvailable = false }
-            }
-
-            if showFDABanner {
-                FDABanner { fdaBannerDismissed = true }
-            }
-
-            let historyCount = viewModel.storageService.diffRecords.count
-            if historyCount > 0 {
-                HistoryBanner(count: historyCount) { onOpenHistory() }
-            }
+            // Grouped banners — only rendered when at least one is visible
+            bannerSection
 
             if viewModel.currentDiff == nil {
                 StepProgressView(currentStep: viewModel.beforeSnapshot == nil ? 1 : 2)
@@ -42,14 +31,46 @@ struct ScanView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { viewModel.recheckFDA() }
         .onChange(of: viewModel.isFDAGranted) { granted in
-            // Reset dismissed state when FDA is granted so the banner re-appears if revoked later.
             if granted { fdaBannerDismissed = false }
         }
+    }
 
-        } // ZStack
+    // MARK: - Banner group
+
+    @ViewBuilder
+    private var bannerSection: some View {
+        let showUpdate  = viewModel.isUpdateAvailable && viewModel.latestTag != nil
+        let showFDA     = showFDABanner
+        let historyCount = viewModel.storageService.diffRecords.count
+        let showHistory = historyCount > 0
+        let anyVisible  = showUpdate || showFDA || showHistory
+
+        if anyVisible {
+            VStack(spacing: 0) {
+                if showUpdate, let tag = viewModel.latestTag {
+                    UpdateBanner(tag: tag) { viewModel.isUpdateAvailable = false }
+                }
+                if showFDA {
+                    if showUpdate { Divider().padding(.horizontal, 14) }
+                    FDABanner { fdaBannerDismissed = true }
+                }
+                if showHistory {
+                    if showUpdate || showFDA { Divider().padding(.horizontal, 14) }
+                    HistoryBanner(count: historyCount) { onOpenHistory() }
+                }
+            }
+            .background(.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+        }
     }
 
 
@@ -587,9 +608,7 @@ struct HistoryBanner: View {
                 .focusable(false)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.6))
-        .overlay(alignment: .bottom) { Divider() }
+        .padding(.vertical, 10)
     }
 }
 
@@ -626,11 +645,7 @@ struct UpdateBanner: View {
             .focusable(false)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(Color.green.opacity(0.08))
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
+        .padding(.vertical, 10)
     }
 
     private func openReleasePage() {
@@ -676,11 +691,7 @@ struct FDABanner: View {
             .focusable(false)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(Color.orange.opacity(0.08))
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
+        .padding(.vertical, 10)
     }
 
     private func openPrivacySettings() {

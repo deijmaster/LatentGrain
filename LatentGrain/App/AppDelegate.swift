@@ -7,12 +7,12 @@ import UserNotifications
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem?
-    private var window: NSWindow?
+    private var popover: NSPopover?
     private var settingsWindow: NSWindow?
     private var historyWindow: NSWindow?
     private var onboardingWindow: NSWindow?
     private var scanViewModel = ScanViewModel()
-    private var revealObserver: Any?
+    private var revealCancellable: AnyCancellable?
     private var iconObservers: Set<AnyCancellable> = []
     private var statusDotView: NSView?
     private var watchService: WatchService?
@@ -21,13 +21,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
-        setupFocusObservers()
+        setupFocusObserver()
         setupIconObservers()
         UNUserNotificationCenter.current().delegate = self
 
         if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
             showOnboardingWindow()
-            // WatchService setup deferred to onComplete closure
         } else {
             setupWatchService()
             scanViewModel.recheckFDA()
@@ -39,15 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showOnboardingWindow() {
         let rootView = OnboardingView { [weak self] in
             guard let self else { return }
-            // orderOut hides without firing willCloseNotification — that observer is
-            // reserved for the × dismiss path only, to avoid double setupWatchService().
             self.onboardingWindow?.orderOut(nil)
             self.onboardingWindow = nil
             self.setupWatchService()
             self.scanViewModel.recheckFDA()
             self.scanViewModel.tryLoadPendingDiff()
             Task { await self.checkForUpdate() }
-            self.showWindow()
+            self.showPopover()
         }
         let controller = NSHostingController(rootView: rootView)
         let win = NSWindow(contentViewController: controller)
@@ -61,10 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.appearance = NSAppearance(named: .darkAqua)
         win.isReleasedWhenClosed = false
         win.center()
-        // NOT .floating — must sit behind System Settings during the FDA step
         onboardingWindow = win
 
-        // If user closes via × — mark complete and start WatchService without opening main window
         NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: win, queue: .main
         ) { [weak self] _ in
@@ -94,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         watchService = WatchService(storage: scanViewModel.storageService) { [weak self] diff in
             DispatchQueue.main.async {
                 self?.scanViewModel.injectWatchDiff(diff)
-                self?.showWindow()
+                self?.showPopover()
             }
         }
         watchObserver = NotificationCenter.default.addObserver(
@@ -127,9 +122,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.target = self
 
         // Dot overlay — centred inside the photo frame of the polaroid icon
-        // Photo area centre in button coords (18pt icon, ~2pt offset in 22pt button):
-        //   x = 2(img offset) + 3(margin_lr) + 5.5(half photo_w=11) ≈ 10.5
-        //   y = 2(img offset) + 5(photo bottom) + 5.5(half photo_h=11) ≈ 12.5
         let dot = NSView(frame: NSRect(x: 8, y: 10, width: 5, height: 5))
         dot.wantsLayer = true
         dot.layer?.cornerRadius = 2.5
@@ -143,7 +135,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if event.type == .rightMouseUp {
             showMenu()
         } else {
-            toggleWindow()
+            togglePopover()
+        }
+    }
+
+    // MARK: - Popover
+
+    private func makePopover() -> NSPopover {
+        let rootView = AnyView(
+            ScanView(viewModel: scanViewModel, onOpenHistory: { [weak self] in self?.showHistoryWindow() })
+                .environmentObject(scanViewModel.storageService)
+        )
+        let controller = NSHostingController(rootView: rootView)
+
+        let pop = NSPopover()
+        pop.contentViewController = controller
+        pop.contentSize = NSSize(width: 380, height: 440)
+        pop.behavior = .transient
+        pop.animates = true
+        pop.appearance = NSAppearance(named: .darkAqua)
+        pop.delegate = self
+
+        // Resize when diff is revealed
+        revealCancellable = scanViewModel.$isDiffRevealed.sink { [weak pop] revealed in
+            let h: CGFloat = revealed ? 700 : 440
+            pop?.contentSize = NSSize(width: 380, height: h)
+        }
+
+        return pop
+    }
+
+    private func showPopover() {
+        if popover == nil {
+            popover = makePopover()
+        }
+        guard let button = statusItem?.button, let pop = popover else { return }
+        if !pop.isShown {
+            pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        updateStatusIcon()
+    }
+
+    private func togglePopover() {
+        if let pop = popover, pop.isShown {
+            pop.performClose(nil)
+        } else {
+            showPopover()
         }
     }
 
@@ -152,7 +190,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showMenu() {
         let menu = NSMenu()
 
-        // App info header
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let infoItem = NSMenuItem(title: "LatentGrain \(version) by deijmaster.", action: nil, keyEquivalent: "")
         infoItem.isEnabled = false
@@ -164,12 +201,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        // Open window
         let openItem = NSMenuItem(title: "Open LatentGrain", action: #selector(openWindow), keyEquivalent: "o")
         openItem.target = self
         menu.addItem(openItem)
 
-        // Detection History
         let recordCount = scanViewModel.storageService.diffRecords.count
         let historyTitle = recordCount > 0
             ? "Detection History (\(recordCount) detection\(recordCount == 1 ? "" : "s"))"
@@ -178,14 +213,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         historyItem.target = self
         menu.addItem(historyItem)
 
-        // GitHub
         let githubItem = NSMenuItem(title: "View on GitHub", action: #selector(openGitHub), keyEquivalent: "")
         githubItem.target = self
         menu.addItem(githubItem)
 
         menu.addItem(.separator())
 
-        // Folders submenu
         let foldersItem = NSMenuItem(title: "Persistence Folders", action: nil, keyEquivalent: "")
         let foldersSubmenu = NSMenu()
         for location in PersistenceLocation.allCases {
@@ -203,41 +236,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        // Pro Mode toggle
         let proModeOn = UserDefaults.standard.bool(forKey: "proMode")
         let proItem = NSMenuItem(title: "Pro Mode", action: #selector(toggleProMode), keyEquivalent: "p")
         proItem.target = self
         proItem.state = proModeOn ? .on : .off
         menu.addItem(proItem)
 
-        // Settings
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
-        // Quit
         let quitItem = NSMenuItem(title: "Quit LatentGrain", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
 
         statusItem?.menu = menu
         statusItem?.button?.performClick(nil)
-        statusItem?.menu = nil  // Remove after showing so left click still works
+        statusItem?.menu = nil
     }
 
-    @objc private func openWindow() {
-        showWindow()
-    }
+    @objc private func openWindow() { showPopover() }
 
     @objc private func openFolder(_ sender: NSMenuItem) {
         guard let path = sender.representedObject as? String else { return }
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 
-    @objc private func openHistory() {
-        showHistoryWindow()
-    }
+    @objc private func openHistory() { showHistoryWindow() }
 
     @objc private func openGitHub() {
         guard let url = URL(string: "https://github.com/deijmaster/LatentGrain") else { return }
@@ -249,13 +275,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.set(!current, forKey: "proMode")
     }
 
-    @objc private func openSettings() {
-        showSettingsWindow(nil)
-    }
+    @objc private func openSettings() { showSettingsWindow(nil) }
+
+    // MARK: - History window
 
     func showHistoryWindow() {
-        // Bring existing window forward rather than recreating — preserves scroll position and selection.
-        // Check non-nil only (not isVisible) — makeKeyAndOrderFront also deminiaturizes.
         if let existing = historyWindow {
             existing.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -279,7 +303,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.maxSize = NSSize(width: 600, height: 900)
         win.appearance = NSAppearance(named: .darkAqua)
         win.isReleasedWhenClosed = false
-        // Not floating — history sits at normal window level, independent of the scan window
         positionHistoryWindow(win)
 
         NotificationCenter.default.addObserver(
@@ -293,43 +316,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Position the history window relative to the scan window when it's visible.
-    /// Prefers left of scan window (top-aligned); falls back to right if no room;
-    /// falls back to center() if no scan window is open or neither side fits.
+    /// Position history window beside where the popover appears (near the status bar button).
     private func positionHistoryWindow(_ win: NSWindow) {
-        guard let scanWin = window, scanWin.isVisible,
-              let screen = scanWin.screen ?? NSScreen.main else {
+        guard let button = statusItem?.button,
+              let buttonWindow = button.window,
+              let screen = buttonWindow.screen ?? NSScreen.main else {
             win.center()
             return
         }
 
+        let buttonScreenFrame = buttonWindow.convertToScreen(
+            button.convert(button.bounds, to: nil)
+        )
         let gap: CGFloat = 16
-        let sf  = scanWin.frame
         let hf  = win.frame
         let vis = screen.visibleFrame
 
-        // Top-align with the scan window, clamped so the bottom doesn't go off-screen
-        let originY = max(vis.minY, sf.maxY - hf.height)
-
-        let leftX  = sf.minX - hf.width - gap
-        let rightX = sf.maxX + gap
+        // Hang below the menu bar, aligned to the button
+        let y      = vis.maxY - hf.height - 16
+        let leftX  = buttonScreenFrame.minX - hf.width - gap
+        let rightX = buttonScreenFrame.maxX + gap
 
         if leftX >= vis.minX {
-            win.setFrameOrigin(NSPoint(x: leftX, y: originY))
+            win.setFrameOrigin(NSPoint(x: leftX, y: y))
         } else if rightX + hf.width <= vis.maxX {
-            win.setFrameOrigin(NSPoint(x: rightX, y: originY))
+            win.setFrameOrigin(NSPoint(x: rightX, y: y))
         } else {
             win.center()
         }
     }
 
-    // Override SwiftUI's injected showSettingsWindow: so all settings routing
-    // — whether from our menu item, ⌘,, or the SwiftUI responder chain —
-    // goes through our own NSWindow instead of the Settings scene.
     @objc func showSettingsWindow(_ sender: Any?) {
-        // Always recreate — SettingsView must re-probe FDA state on every open.
-        // SwiftUI's onAppear only fires on first insertion into the hierarchy,
-        // so a cached NSHostingController would show stale FDA status on re-open.
         let controller = NSHostingController(rootView: SettingsView())
         let win = NSWindow(contentViewController: controller)
         win.title = "LatentGrain Settings"
@@ -342,100 +359,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // MARK: - Window toggle
+    // MARK: - Focus observer
 
-    @objc private func toggleWindow() {
-        if let window, window.isVisible {
-            window.orderOut(nil)
-            updateStatusIcon()
-        } else {
-            showWindow()
-        }
-    }
-
-    private func showWindow() {
-        if window == nil {
-            window = makeWindow()
-        }
-
-        guard let window else { return }
-
-        if let screen = NSScreen.main {
-            let x = screen.visibleFrame.maxX - window.frame.width - 16
-            let y = screen.visibleFrame.maxY - window.frame.height - 16
-            window.setFrameOrigin(NSPoint(x: x, y: y))
-        }
-
-        window.alphaValue = 0
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            window.animator().alphaValue = 1
-        }
-        updateStatusIcon()
-    }
-
-    private func makeWindow() -> NSWindow {
-        let rootView = ScanView(viewModel: scanViewModel, onOpenHistory: { [weak self] in self?.showHistoryWindow() })
-            .environmentObject(scanViewModel.storageService)
-
-        let hostingController = NSHostingController(rootView: rootView)
-        hostingController.sizingOptions = []
-        hostingController.view.autoresizingMask = [.width, .height]
-
-        let win = NSWindow(contentViewController: hostingController)
-        win.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
-        win.titlebarAppearsTransparent = true
-        win.titleVisibility = .hidden
-        win.isMovableByWindowBackground = true
-        win.setContentSize(NSSize(width: 480, height: 460))
-        win.minSize = NSSize(width: 480, height: 360)
-        win.maxSize = NSSize(width: 480, height: 1200)
-        win.backgroundColor = NSColor.windowBackgroundColor
-        win.appearance = NSAppearance(named: .darkAqua)
-        win.isReleasedWhenClosed = false
-        win.level = .floating
-        win.delegate = self
-
-        // Expand window when results are revealed
-        revealObserver = scanViewModel.$isDiffRevealed.sink { [weak win] revealed in
-            guard let win else { return }
-            let targetHeight: CGFloat = revealed ? 740 : 500
-            var frame = win.frame
-            let delta = targetHeight - frame.height
-            frame.origin.y -= delta
-            frame.size.height = targetHeight
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.35
-                ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                win.animator().setFrame(frame, display: true)
-            }
-        }
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(windowWillClose),
-            name: NSWindow.willCloseNotification,
-            object: win
-        )
-
-        return win
-    }
-
-    @objc func windowWillClose(_ notification: Notification) {
-        updateStatusIcon()
-    }
-
-    // MARK: - Focus fade
-
-    private func setupFocusObservers() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(appDidResignActive),
-            name: NSApplication.didResignActiveNotification,
-            object: nil
-        )
+    private func setupFocusObserver() {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(appDidBecomeActive),
@@ -462,30 +388,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || (scanViewModel.beforeSnapshot != nil && scanViewModel.currentDiff == nil)
             || scanViewModel.hasUnreadDiff
         let dotColor: NSColor = isActive ? .systemOrange : .systemGreen
-        let windowOpen = window?.isVisible ?? false
+        let popoverOpen = popover?.isShown ?? false
 
         CATransaction.begin()
         CATransaction.setAnimationDuration(0.2)
-        if windowOpen {
-            // Filled dot — window is open
+        if popoverOpen {
             layer.backgroundColor = dotColor.cgColor
-            layer.borderColor = dotColor.cgColor
-            layer.borderWidth = 0
+            layer.borderColor     = dotColor.cgColor
+            layer.borderWidth     = 0
         } else {
-            // Ring dot — app running, window closed
             layer.backgroundColor = CGColor.clear
-            layer.borderColor = dotColor.cgColor
-            layer.borderWidth = 1.5
+            layer.borderColor     = dotColor.cgColor
+            layer.borderWidth     = 1.5
         }
         CATransaction.commit()
-    }
-
-    @objc private func appDidResignActive() {
-        guard let window, window.isVisible else { return }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.2
-            window.animator().alphaValue = 0.82
-        }
     }
 
     @objc private func appDidBecomeActive() {
@@ -494,19 +410,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if newFDA != watchService?.lastKnownFDAState {
             watchService?.restartWithCurrentFDAState()
         }
-        guard let window, window.isVisible else { return }
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            window.animator().alphaValue = 1.0
-        }
     }
 }
 
-// MARK: - NSWindowDelegate
+// MARK: - NSPopoverDelegate
 
-extension AppDelegate: NSWindowDelegate {
-    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-        NSSize(width: sender.frame.width, height: frameSize.height)
+extension AppDelegate: NSPopoverDelegate {
+    func popoverDidClose(_ notification: Notification) {
+        updateStatusIcon()
     }
 }
 
@@ -514,7 +425,6 @@ extension AppDelegate: NSWindowDelegate {
 
 extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
 
-    /// Called when the user taps the notification — show the window with the pending diff.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
@@ -525,12 +435,11 @@ extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
                 scanViewModel.injectWatchDiff(diff)
             }
             watchService?.clearPendingDiff()
-            showWindow()
+            showPopover()
         }
         completionHandler()
     }
 
-    /// Show banner + play sound even when the app is frontmost.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
