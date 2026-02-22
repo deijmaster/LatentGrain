@@ -119,9 +119,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         guard let button = statusItem?.button else { return }
 
-        button.image = NSImage(systemSymbolName: "camera.aperture",
-                               accessibilityDescription: "LatentGrain")
-        button.image?.isTemplate = true
+        let icon = NSImage(named: "MenuBarIcon")
+        icon?.isTemplate = true
+        button.image = icon
         button.action = #selector(handleClick)
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.target = self
