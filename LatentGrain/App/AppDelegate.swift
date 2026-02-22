@@ -122,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.target = self
 
         // Dot overlay — centred inside the photo frame of the polaroid icon
-        let dot = NSView(frame: NSRect(x: 8, y: 10, width: 5, height: 5))
+        let dot = NSView(frame: NSRect(x: 10, y: 13, width: 5, height: 5))
         dot.wantsLayer = true
         dot.layer?.cornerRadius = 2.5
         dot.layer?.backgroundColor = NSColor.systemGreen.cgColor
