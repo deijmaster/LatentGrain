@@ -126,10 +126,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.target = self
 
-        // Dot overlay — sits center-right of the icon, colour updated by updateStatusIcon()
-        let dot = NSView(frame: NSRect(x: 12, y: 5, width: 7, height: 7))
+        // Dot overlay — centred inside the photo frame of the polaroid icon
+        // Photo area centre in button coords (18pt icon, ~2pt offset in 22pt button):
+        //   x = 2(img offset) + 3(margin_lr) + 5.5(half photo_w=11) ≈ 10.5
+        //   y = 2(img offset) + 5(photo bottom) + 5.5(half photo_h=11) ≈ 12.5
+        let dot = NSView(frame: NSRect(x: 8, y: 10, width: 5, height: 5))
         dot.wantsLayer = true
-        dot.layer?.cornerRadius = 3.5
+        dot.layer?.cornerRadius = 2.5
         dot.layer?.backgroundColor = NSColor.systemGreen.cgColor
         button.addSubview(dot)
         statusDotView = dot
