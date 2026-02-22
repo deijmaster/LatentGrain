@@ -1,16 +1,29 @@
 import Foundation
 import Combine
 
-/// Persists `PersistenceSnapshot` objects to disk using JSON.
+/// Persists `PersistenceSnapshot` and `DiffRecord` objects to disk using JSON.
 /// Designed with the same public API that a CoreData backend would expose,
 /// making a future migration straightforward.
 final class StorageService: ObservableObject {
 
-    @Published private(set) var snapshots: [PersistenceSnapshot] = []
+    @Published private(set) var snapshots:   [PersistenceSnapshot] = []
+    @Published private(set) var diffRecords: [DiffRecord]          = []
 
-    private let storageURL: URL
+    /// Non-nil when a watch-detected diff is waiting for the user to view.
+    /// Cleared when the diff is revealed (Develop pressed) or manually dismissed.
+    private(set) var pendingDiffPair: PendingDiffPairRecord?
+
+    private let storageURL:       URL
+    private let diffRecordsURL:   URL
+    private let pendingDiffURL:   URL
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+
+    // Thin Codable wrapper — avoids named-tuple Codable limitations
+    struct PendingDiffPairRecord: Codable {
+        let beforeID: UUID
+        let afterID:  UUID
+    }
 
     // MARK: - Init
 
@@ -25,47 +38,125 @@ final class StorageService: ObservableObject {
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
-        self.storageURL = appDir.appendingPathComponent("snapshots.json")
+        self.storageURL     = appDir.appendingPathComponent("snapshots.json")
+        self.diffRecordsURL = appDir.appendingPathComponent("diff_records.json")
+        self.pendingDiffURL = appDir.appendingPathComponent("pending_diff.json")
         load()
     }
 
-    // MARK: - Public API
+    // MARK: - Snapshot API
 
     func save(snapshot: PersistenceSnapshot) {
         // Free tier: keep only the most recent snapshot; premium allows unlimited.
         // Gate is enforced at the call site via FeatureGateManager.
         snapshots.append(snapshot)
-        persist()
+        persistSnapshots()
     }
 
     func delete(snapshot: PersistenceSnapshot) {
         snapshots.removeAll { $0.id == snapshot.id }
-        persist()
+        persistSnapshots()
     }
 
     func deleteAll() {
         snapshots.removeAll()
-        persist()
+        persistSnapshots()
     }
 
-    // MARK: - Private
+    // MARK: - DiffRecord API
+
+    func saveDiffRecord(_ record: DiffRecord) {
+        diffRecords.append(record)
+        persistDiffRecords()
+    }
+
+    func deleteDiffRecord(id: UUID) {
+        diffRecords.removeAll { $0.id == id }
+        persistDiffRecords()
+    }
+
+    func deleteAllDiffRecords() {
+        diffRecords.removeAll()
+        persistDiffRecords()
+    }
+
+    /// Returns the two snapshots referenced by a DiffRecord, or nil if either has been pruned.
+    func snapshotPair(for record: DiffRecord) -> (before: PersistenceSnapshot, after: PersistenceSnapshot)? {
+        guard
+            let before = snapshots.first(where: { $0.id == record.beforeSnapshotID }),
+            let after  = snapshots.first(where: { $0.id == record.afterSnapshotID })
+        else { return nil }
+        return (before, after)
+    }
+
+    // MARK: - Pending diff pair API
+
+    func savePendingDiffPair(beforeID: UUID, afterID: UUID) {
+        pendingDiffPair = PendingDiffPairRecord(beforeID: beforeID, afterID: afterID)
+        persistPendingDiff()
+    }
+
+    func clearPendingDiffPair() {
+        pendingDiffPair = nil
+        try? FileManager.default.removeItem(at: pendingDiffURL)
+    }
+
+    /// Reconstruct a full diff from the pending pair using the supplied DiffService.
+    /// Returns nil if either snapshot has been pruned or no pair is recorded.
+    func reconstructPendingDiff(using diffService: DiffService) -> PersistenceDiff? {
+        guard
+            let pair   = pendingDiffPair,
+            let before = snapshots.first(where: { $0.id == pair.beforeID }),
+            let after  = snapshots.first(where: { $0.id == pair.afterID })
+        else { return nil }
+        return diffService.diff(before: before, after: after)
+    }
+
+    /// Alias used internally — avoids Swift naming collision between the `snapshots` property
+    /// and a method that also starts with `snapshots`.
+    private func findSnapshot(id: UUID) -> PersistenceSnapshot? {
+        snapshots.first { $0.id == id }
+    }
+
+    // MARK: - Private — load
 
     private func load() {
-        guard
-            let data = try? Data(contentsOf: storageURL),
-            let loaded = try? decoder.decode([PersistenceSnapshot].self, from: data)
-        else { return }
-        snapshots = loaded
+        if let data   = try? Data(contentsOf: storageURL),
+           let loaded = try? decoder.decode([PersistenceSnapshot].self, from: data) {
+            snapshots = loaded
+        }
+        if let data    = try? Data(contentsOf: diffRecordsURL),
+           let loaded  = try? decoder.decode([DiffRecord].self, from: data) {
+            diffRecords = loaded
+        }
+        if let data   = try? Data(contentsOf: pendingDiffURL),
+           let loaded = try? decoder.decode(PendingDiffPairRecord.self, from: data) {
+            pendingDiffPair = loaded
+        }
     }
 
-    private func persist() {
+    // MARK: - Private — persist
+
+    private func persistSnapshots() {
+        write(snapshots, to: storageURL)
+    }
+
+    private func persistDiffRecords() {
+        write(diffRecords, to: diffRecordsURL)
+    }
+
+    private func persistPendingDiff() {
+        guard let pair = pendingDiffPair else { return }
+        write(pair, to: pendingDiffURL)
+    }
+
+    private func write<T: Encodable>(_ value: T, to url: URL) {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(snapshots) else { return }
-        try? data.write(to: storageURL, options: .atomic)
-        // Restrict to owner read/write only — snapshot data is sensitive
+        guard let data = try? encoder.encode(value) else { return }
+        try? data.write(to: url, options: .atomic)
         try? FileManager.default.setAttributes(
             [.posixPermissions: 0o600],
-            ofItemAtPath: storageURL.path
+            ofItemAtPath: url.path
         )
     }
 }

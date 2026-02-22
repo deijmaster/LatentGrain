@@ -155,8 +155,26 @@ final class WatchService {
 
             self.pendingDiff = diff
             self.storage.save(snapshot: fresh)   // becomes the new baseline
-            self.postNotification(for: diff)
+
+            // Persist a DiffRecord so History survives app restarts
+            self.storage.saveDiffRecord(DiffRecord(
+                id:               UUID(),
+                beforeSnapshotID: baseline.id,
+                afterSnapshotID:  fresh.id,
+                timestamp:        fresh.timestamp,
+                addedCount:       diff.added.count,
+                removedCount:     diff.removed.count,
+                modifiedCount:    diff.modified.count,
+                source:           "Auto"
+            ))
+
+            // Persist the pending pair so the orange dot survives a restart
+            self.storage.savePendingDiffPair(beforeID: baseline.id, afterID: fresh.id)
+
+            // Open the popover FIRST so willPresent can see isShown == true
+            // and suppress the banner when the user is already at their Mac.
             self.onDiff(diff)
+            self.postNotification(for: diff)
         }
     }
 

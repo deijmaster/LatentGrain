@@ -12,35 +12,43 @@ struct DiffView: View {
 
     private func matches(_ item: PersistenceItem) -> Bool {
         guard !searchText.isEmpty else { return true }
-        return item.filename.localizedCaseInsensitiveContains(searchText)
-            || (item.programPath?.localizedCaseInsensitiveContains(searchText) ?? false)
+        let q = searchText
+        return item.filename.localizedCaseInsensitiveContains(q)
+            || (item.label?.localizedCaseInsensitiveContains(q) ?? false)
+            || (item.programPath?.localizedCaseInsensitiveContains(q) ?? false)
+            || item.location.displayName.localizedCaseInsensitiveContains(q)
+            || item.fullPath.localizedCaseInsensitiveContains(q)
     }
 
-    /// Autocomplete chips — driven by filenames, location names, and change keywords.
+    /// Autocomplete chips — drawn from every searchable field across the full snapshot.
     private var suggestions: [String] {
         guard !searchText.isEmpty else { return [] }
         let q = searchText.lowercased()
         var pool: [String] = []
 
-        // Filenames from all changed items
-        let names = Set(
-            diff.added.map(\.filename) +
-            diff.removed.map(\.filename) +
-            diff.modified.map(\.after.filename)
-        )
-        pool += names.sorted()
+        // All items in the after snapshot — filenames, labels, binary names from program paths
+        let allItems = diff.after.items
+        pool += allItems.map(\.filename)
+        pool += allItems.compactMap(\.label)
+        pool += allItems.compactMap(\.programPath)
+            .map { URL(fileURLWithPath: $0).lastPathComponent }
+            .filter { !$0.isEmpty }
+
+        // Labels from changed items (may not be in after snapshot if removed)
+        pool += diff.removed.compactMap(\.label)
+        pool += diff.removed.map(\.filename)
 
         // Location display names
-        pool += diff.after.groupedByLocation.keys.map(\.displayName)
+        pool += PersistenceLocation.allCases.map(\.displayName)
 
         // Change-type keywords
         pool += ["added", "removed", "modified"]
 
         return Array(Set(
-            pool.filter { $0.lowercased().contains(q) && $0.lowercased() != q }
+            pool.filter { !$0.isEmpty && $0.lowercased().contains(q) && $0.lowercased() != q }
         ))
         .sorted()
-        .prefix(6)
+        .prefix(8)
         .map { $0 }
     }
 

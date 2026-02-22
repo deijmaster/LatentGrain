@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import Combine
+import CoreServices
 import UserNotifications
 
 @MainActor
@@ -20,6 +21,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // Register with LaunchServices so the app icon appears correctly in
+        // System Settings > Privacy > Full Disk Access and in Notification Center.
+        // Required for LSUIElement apps and dev builds running from non-standard paths.
+        LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
+        // Explicitly set the app icon — required for LSUIElement apps to show
+        // the correct icon in Notification Center and System Settings (FDA list).
+        // NSImage(named:) cannot load .appiconset entries — only .imageset — so we
+        // ask the OS for the icon through LaunchServices which always resolves it.
+        NSApp.applicationIconImage = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
         setupStatusItem()
         setupFocusObserver()
         setupIconObservers()
@@ -87,10 +97,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupWatchService() {
         watchService = WatchService(storage: scanViewModel.storageService) { [weak self] diff in
-            DispatchQueue.main.async {
-                self?.scanViewModel.injectWatchDiff(diff)
-                self?.showPopover()
-            }
+            // Already on @MainActor — WatchService calls onDiff from Task { @MainActor }.
+            // No DispatchQueue.main.async needed; keeping it synchronous ensures the popover
+            // is shown before postNotification runs, so willPresent correctly suppresses
+            // the banner when the user is already looking at the results.
+            self?.scanViewModel.injectAndRevealWatchDiff(diff)
+            self?.showPopover()
         }
         watchObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification, object: nil, queue: .main
@@ -118,9 +130,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.target = self
 
-        // Redraw when system appearance flips (light ↔ dark menu bar)
+        // Redraw when system appearance flips (light ↔ dark menu bar).
+        // KVO callback is nonisolated — hop to MainActor before touching UI state.
         appearanceObserver = NSApp.observe(\.effectiveAppearance, options: []) { [weak self] _, _ in
-            self?.updateStatusIcon()
+            Task { @MainActor [weak self] in self?.updateStatusIcon() }
         }
 
         updateStatusIcon()
@@ -146,7 +159,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let pop = NSPopover()
         pop.contentViewController = controller
-        pop.contentSize = NSSize(width: 380, height: 440)
+        // Open at full height if results are already revealed (e.g. notification tap or pending diff)
+        pop.contentSize = NSSize(width: 380, height: scanViewModel.isDiffRevealed ? 700 : 440)
         pop.behavior = .transient
         pop.animates = true
         pop.appearance = NSAppearance(named: .darkAqua)
@@ -205,6 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let openItem = NSMenuItem(title: "Open LatentGrain", action: #selector(openWindow), keyEquivalent: "o")
         openItem.target = self
+        openItem.image = NSImage(named: "MenuBarIcon")
         menu.addItem(openItem)
 
         let recordCount = scanViewModel.storageService.diffRecords.count
@@ -213,15 +228,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             : "Detection History"
         let historyItem = NSMenuItem(title: historyTitle, action: #selector(openHistory), keyEquivalent: "h")
         historyItem.target = self
+        historyItem.image = NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: nil)
         menu.addItem(historyItem)
 
         let githubItem = NSMenuItem(title: "View on GitHub", action: #selector(openGitHub), keyEquivalent: "")
         githubItem.target = self
+        githubItem.image = NSImage(systemSymbolName: "arrow.up.right.square", accessibilityDescription: nil)
         menu.addItem(githubItem)
 
         menu.addItem(.separator())
 
         let foldersItem = NSMenuItem(title: "Persistence Folders", action: nil, keyEquivalent: "")
+        foldersItem.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
         let foldersSubmenu = NSMenu()
         for location in PersistenceLocation.allCases {
             let item = NSMenuItem(
@@ -231,6 +249,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             item.target = self
             item.representedObject = location.resolvedPath
+            item.image = NSImage(systemSymbolName: location.requiresElevation ? "lock.fill" : "folder", accessibilityDescription: nil)
             foldersSubmenu.addItem(item)
         }
         foldersItem.submenu = foldersSubmenu
@@ -242,15 +261,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let proItem = NSMenuItem(title: "Pro Mode", action: #selector(toggleProMode), keyEquivalent: "p")
         proItem.target = self
         proItem.state = proModeOn ? .on : .off
+        proItem.image = NSImage(systemSymbolName: "crown.fill", accessibilityDescription: nil)
         menu.addItem(proItem)
 
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
+        settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit LatentGrain", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
         menu.addItem(quitItem)
 
         statusItem?.menu = menu
@@ -401,7 +423,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dim: CGFloat = 18
         let size = NSSize(width: dim, height: dim)
 
-        return NSImage(size: size, flipped: false) { [weak self] _ in
+        return NSImage(size: size, flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext,
                   let base = NSImage(named: "MenuBarIcon"),
                   let mask = base.cgImage(forProposedRect: nil, context: nil, hints: nil)
@@ -421,11 +443,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ctx.restoreGState()
 
             // Photo area centre in 18pt image coords (x from left, y from bottom):
-            //   pad=1 → frame_h=16, frame_w=13 centred → fx=2, fy=1 (from top)
-            //   margin_lr=1, margin_top=1, margin_bot=4 → photo 11×11, top-left at (3,2)
-            //   centre x = 3 + 5.5 = 8.5
+            //   pad=1 → frame_h=16, frame_w=13 → fx=(18-13)/2=2.5, fy=1 (from top)
+            //   margin_lr=1, margin_top=1, margin_bot=4 → photo 11×11, top-left at (3.5, 2)
+            //   centre x = 3.5 + 5.5 = 9.0
             //   centre y (NSImage, from bottom) = 18 − 2 − 5.5 = 10.5
-            let cx: CGFloat = 8.5
+            let cx: CGFloat = 9.0
             let cy: CGFloat = 10.5
             let r:  CGFloat = 2.5   // dot radius
 
@@ -473,7 +495,8 @@ extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
     ) {
         if response.notification.request.content.userInfo["action"] as? String == "showDiff" {
             if let diff = watchService?.pendingDiff {
-                scanViewModel.injectWatchDiff(diff)
+                // Notification tap — reveal results immediately, no "Develop" step.
+                scanViewModel.injectAndRevealWatchDiff(diff)
             }
             watchService?.clearPendingDiff()
             showPopover()
@@ -486,6 +509,8 @@ extension AppDelegate: @preconcurrency UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound])
+        // Suppress the banner if the popover is already open — user can already see the results.
+        let options: UNNotificationPresentationOptions = popover?.isShown == true ? [] : [.banner, .sound]
+        completionHandler(options)
     }
 }

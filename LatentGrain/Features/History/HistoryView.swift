@@ -9,6 +9,22 @@ struct HistoryView: View {
     @State private var selectedRecord: DiffRecord? = nil
     @State private var searchText = ""
 
+    /// All searchable text strings extracted from a record's after-snapshot items.
+    /// Covers filenames, reverse-DNS labels, binary names, and location names —
+    /// the same fields searched in DiffView — so history search is full-content.
+    private func itemStrings(for record: DiffRecord) -> [String] {
+        guard let pair = storageService.snapshotPair(for: record) else { return [] }
+        let items = pair.after.items
+        var strings: [String] = []
+        strings += items.map { $0.filename }
+        strings += items.compactMap { $0.label }
+        strings += items.compactMap { $0.programPath }
+            .map { URL(fileURLWithPath: $0).lastPathComponent }
+            .filter { !$0.isEmpty }
+        strings += items.map { $0.location.displayName }
+        return strings
+    }
+
     private var filteredRecords: [DiffRecord] {
         let all = storageService.diffRecords.reversed() as [DiffRecord]
         guard !searchText.isEmpty else { return all }
@@ -16,37 +32,60 @@ struct HistoryView: View {
         return all.filter { record in
             record.source.lowercased().contains(q)
             || record.timestamp.formatted(date: .abbreviated, time: .shortened).lowercased().contains(q)
+            || record.timestamp.formatted(.dateTime.month(.abbreviated).year()).lowercased().contains(q)
             || (record.addedCount    > 0 && "added".contains(q))
             || (record.removedCount  > 0 && "removed".contains(q))
             || (record.modifiedCount > 0 && "modified".contains(q))
             || "\(record.totalChanges)".contains(q)
+            || "\(record.addedCount) added".contains(q)
+            || "\(record.removedCount) removed".contains(q)
+            || "\(record.modifiedCount) modified".contains(q)
+            || itemStrings(for: record).contains { $0.lowercased().contains(q) }
         }
     }
 
-    /// Suggestion chips — driven by what actually exists in the records.
+    /// Suggestion chips — driven by everything searchable in the records,
+    /// including the full item content (filenames, labels, binary names) from each snapshot.
     private var suggestions: [String] {
         guard !searchText.isEmpty else { return [] }
         let q = searchText.lowercased()
         var pool: [String] = []
 
-        // Source types present in data
-        let sources = Set(storageService.diffRecords.map { $0.source })
-        pool += sources.sorted()
+        // Source types
+        pool += Set(storageService.diffRecords.map { $0.source }).sorted()
 
         // Change-type keywords
         pool += ["added", "removed", "modified"]
 
-        // Month + year strings from actual timestamps
-        let months = Set(storageService.diffRecords.map {
+        // Month + year strings
+        pool += Set(storageService.diffRecords.map {
             $0.timestamp.formatted(.dateTime.month(.abbreviated).year())
-        })
-        pool += months.sorted()
+        }).sorted()
+
+        // Full abbreviated dates
+        pool += Set(storageService.diffRecords.map {
+            $0.timestamp.formatted(date: .abbreviated, time: .omitted)
+        }).sorted()
+
+        // Count-based phrases that exist in real data
+        pool += storageService.diffRecords.flatMap { record -> [String] in
+            var parts: [String] = []
+            if record.addedCount    > 0 { parts.append("\(record.addedCount) added") }
+            if record.removedCount  > 0 { parts.append("\(record.removedCount) removed") }
+            if record.modifiedCount > 0 { parts.append("\(record.modifiedCount) modified") }
+            return parts
+        }
+
+        // Full item content from every record's after-snapshot
+        for record in storageService.diffRecords {
+            pool += itemStrings(for: record)
+        }
 
         return Array(Set(
-            pool.filter { $0.lowercased().contains(q) && $0.lowercased() != q }
+            pool.filter { !$0.isEmpty && $0.lowercased().contains(q) && $0.lowercased() != q }
         ))
         .sorted()
-        .prefix(6)
+        .prefix(8)
         .map { $0 }
     }
 
@@ -105,7 +144,7 @@ struct HistoryView: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .padding(6)
-                        .background(Color(nsColor: .controlBackgroundColor))
+                        .background(.white.opacity(0.1))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -225,10 +264,12 @@ struct HistoryView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button("Upgrade to Premium") {
+            Button {
                 // TODO (Phase 4): open StoreKit purchase sheet
+            } label: {
+                NavButton(label: "Upgrade to Premium", direction: .forward)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.plain)
             .focusable(false)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -264,33 +305,15 @@ struct DiffRecordRowView: View {
                     bottomTrailingRadius: 0, topTrailingRadius: 0
                 ))
 
+            // Content — badge, timestamp, pills
             VStack(alignment: .leading, spacing: 7) {
-                // Top row: source badge + timestamp + delete (on hover) or chevron
                 HStack(spacing: 8) {
                     sourceBadge
                     Text(record.timestamp.formatted(date: .abbreviated, time: .shortened))
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.primary)
-                    Spacer()
-                    if isHovered, let onDelete {
-                        Button {
-                            onDelete()
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.red.opacity(0.8))
-                        }
-                        .buttonStyle(.plain)
-                        .focusable(false)
-                        .transition(.opacity)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.tertiary)
-                    }
                 }
 
-                // Change pills
                 HStack(spacing: 6) {
                     if record.addedCount > 0 {
                         changePill("+\(record.addedCount) added", color: .green)
@@ -303,10 +326,34 @@ struct DiffRecordRowView: View {
                     }
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.leading, 12)
             .frame(maxWidth: .infinity, minHeight: 56, maxHeight: 56, alignment: .leading)
+
+            // Trailing action — lives in the outer HStack so it centres against the full row height
+            if isHovered, let onDelete {
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.red.opacity(0.85))
+                        .frame(width: 28, height: 28)
+                        .background(.red.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .transition(.opacity)
+                .padding(.trailing, 10)
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 28, height: 28)
+                    .padding(.trailing, 10)
+            }
         }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.7))
+        .background(.white.opacity(0.06))
         .background(accent.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(

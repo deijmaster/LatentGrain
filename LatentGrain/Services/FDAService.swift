@@ -3,12 +3,20 @@ import AppKit
 
 /// Checks whether Full Disk Access has been granted to the app.
 struct FDAService {
-    /// Returns `true` when the app can read the Background Task Management directory,
-    /// which requires Full Disk Access on macOS 13+.
+    /// Returns `true` when Full Disk Access has been granted.
+    ///
+    /// Uses `/Library/Application Support/com.apple.TCC/TCC.db` as the probe — it is
+    /// present on every macOS 10.15+ installation and is definitively FDA-protected.
+    /// The BTM directory was unreliable because it may not exist on Macs with no
+    /// registered background tasks, producing false negatives.
+    ///
+    /// We open a FileHandle (no data is read) — standard macOS pattern for FDA detection.
     static var isGranted: Bool {
-        FileManager.default.isReadableFile(
-            atPath: "/private/var/db/com.apple.backgroundtaskmanagement"
+        let handle = FileHandle(
+            forReadingAtPath: "/Library/Application Support/com.apple.TCC/TCC.db"
         )
+        handle?.closeFile()
+        return handle != nil
     }
 
     /// Opens System Settings to the Full Disk Access pane and simultaneously reveals

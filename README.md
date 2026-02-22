@@ -2,58 +2,88 @@
 
 > *The fine detail of what's hiding on your Mac.*
 
-I got tired of looking at deamons and launch agents on my macs, and yes, I love bananas - so I made this.
+I got tired of staring at daemons and launch agents on my Macs, and yes, I love bananas — so I made this.
 
-LatentGrain is a macOS menu-bar utility that snapshots your mac's key persistence state — LaunchAgents, LaunchDaemons, Login Items, System Extensions — before and after any app install or using the automatic scan (explicit permission required), then shows you exactly what changed in a Polaroid-style before/after UI.
+LatentGrain is a macOS menu-bar utility that **photographs your persistence layer** before and after you install anything, then shows you exactly what changed. Think of it as a darkroom for your Mac: shoot before, install, shoot after, develop — and the film reveals what's been hiding.
+
+---
+
+## What is a "persistence location"?
+
+macOS apps can install small background programs that start automatically — even when the app itself is closed, and even after a reboot. These are called **launch agents**, **launch daemons**, and **login items**. They live in specific folders on your file system, and macOS registers them silently.
+
+Most of the time this is fine. But sometimes you want to know exactly what an installer just added to your system. That's what LatentGrain is for.
 
 ---
 
 ## How it works
 
-1. **Shoot Before** — take a snapshot of all persistence locations before installing an app
-2. Install your app or anything else
-3. **Shoot After** — take a second snapshot
-4. **Develop** — two Polaroid cards reveal what was there before and after, followed by a full diff of exactly what changed
-5. **Scan** — LatentGrain can also (with explicit permission) detect **added**, **removed**, and **modified** items
-6. **Pro mode** - You already know everything? You know Siri will never work correctly? Great we have a pro mode for you
+### Manual mode — shoot before/after
 
-No alarmism. No bloat. Just the facts.
+1. **Shoot Before** — click the menu-bar icon and take a snapshot before installing anything. LatentGrain reads all persistence locations and stores a baseline.
+2. **Install anything** — an app, a CLI tool, a system update, anything.
+3. **Shoot After** — take a second snapshot.
+4. **Develop** — two Polaroid-style cards animate from dark to revealed, followed by a full diff: exactly what was **added**, **removed**, or **modified**, with file names, binary paths, and flags like "runs at login" or "keeps running".
 
-> **Privacy note:** On launch, LatentGrain makes a single request to the GitHub Releases API to check for updates. No personal data is sent — it is a plain unauthenticated GET to a public endpoint. Your IP address is visible to GitHub as with any HTTPS request. No other network requests are ever made.
+### Watch mode — automatic detection *(Pro)*
+
+Enable Watch Mode in Settings and LatentGrain monitors your persistence locations in real time using FSEvents. The moment a new agent installs itself — from an app update, a background installer, or anything else — you get a notification. No manual scanning needed.
 
 ---
 
 ## Features
 
-- Scans all major macOS persistence locations
-- Detects **added**, **removed**, and **modified** items (via SHA-256 file hashing)
-- Highlights items that run at login or are configured to stay alive
-- Reveal in Finder for any item with one click
-- Quick-access shortcuts to every persistence folder in the toolbar
-- Clean, Apple-native UI — no Electron, no web views
+| Feature | Free | Pro |
+|---|---|---|
+| Before/After manual scan | ✓ | ✓ |
+| All persistence locations | ✓ | ✓ |
+| Diff view (added/removed/modified) | ✓ | ✓ |
+| SHA-256 hash-based change detection | ✓ | ✓ |
+| "Runs at login" / "Keep alive" flags | ✓ | ✓ |
+| Reveal in Finder for any item | ✓ | ✓ |
+| Detection History | — | ✓ |
+| Watch mode (real-time FSEvents monitoring) | — | ✓ |
+| Instant notifications on change | — | ✓ |
+
+**Other highlights:**
+- Full-text search across all findings, including filenames, labels, and binary paths
+- Autocomplete chips in every search field
+- Quick-access shortcuts to every persistence folder via the right-click menu
+- First-launch onboarding that walks you through the one required permission (Full Disk Access)
+- Clean, native Apple UI — Swift + SwiftUI, no Electron, no web views, no external dependencies
 
 ---
 
 ## Persistence locations monitored
 
-| Location | Access |
-|---|---|
-| `~/Library/LaunchAgents` | User — no elevation needed |
-| `/Library/LaunchAgents` | User-readable |
-| `/Library/SystemExtensions` | User-readable |
-| `/Library/LaunchDaemons` | Privileged helper |
-| Background Task Management DB | Full Disk Access |
+| Location | What lives there | Access required |
+|---|---|---|
+| `~/Library/LaunchAgents` | Per-user background agents | None |
+| `/Library/LaunchAgents` | System-wide background agents | None |
+| `/Library/SystemExtensions` | Kernel/network extensions | None |
+| `/Library/LaunchDaemons` | System daemons (run as root) | None |
+| Background Task Management DB | Everything macOS silently registers | Full Disk Access |
+
+> The Background Task Management database (`/private/var/db/com.apple.backgroundtaskmanagement`) is where macOS registers **all** persistent items — including ones that never appear in the other folders. It's the most complete picture available, and it's the reason Full Disk Access is requested.
 
 ---
 
-## Requirements
+## Download
 
-- macOS 13 Ventura or later
-- Xcode 15+ (to build from source)
+### Pre-built app *(unsigned)*
 
----
+Pre-built DMG releases are available on the [Releases page](https://github.com/deijmaster/LatentGrain/releases).
 
-## Building from source
+Because LatentGrain is not yet notarized by Apple, macOS Gatekeeper will block the first launch. To open it:
+
+1. Mount the DMG and drag LatentGrain to Applications as usual
+2. **Right-click** LatentGrain.app → **Open** → click **Open** in the dialog
+
+You only need to do this once. After that it opens normally.
+
+> Alternatively, from Terminal: `xattr -cr /Applications/LatentGrain.app`
+
+### Build from source
 
 This project uses [xcodegen](https://github.com/yonaskolb/XcodeGen) to manage the `.xcodeproj`.
 
@@ -62,24 +92,31 @@ This project uses [xcodegen](https://github.com/yonaskolb/XcodeGen) to manage th
 brew install xcodegen
 
 # Clone and build
-git clone https://github.com/YOUR_USERNAME/LatentGrain.git
+git clone https://github.com/deijmaster/LatentGrain.git
 cd LatentGrain
 xcodegen generate
 open LatentGrain.xcodeproj
 ```
 
-Then press **⌘R** in Xcode to build and run.
+Press **⌘R** in Xcode to build and run.
 
-> **Note:** The app requires **App Sandbox disabled** to read system-level persistence paths. It is intended for direct distribution, not the Mac App Store.
+> **Note:** App Sandbox is disabled — required to read system-level persistence paths. This app is for direct distribution only, not the Mac App Store.
+
+---
+
+## Requirements
+
+- macOS 13 Ventura or later
+- Xcode 15+ to build from source
 
 ---
 
 ## Architecture
 
 ```
-LatentGrain.app              ← SwiftUI menu-bar app
+LatentGrain.app              ← SwiftUI menu-bar app (@MainActor)
        ↕ XPC
-LatentGrainHelper            ← Privileged XPC helper (Phase 2)
+LatentGrainHelper            ← Privileged XPC helper
        ↕
 ~/Library/Application Support/LatentGrain/   ← JSON snapshot store
 ```
@@ -88,8 +125,9 @@ LatentGrainHelper            ← Privileged XPC helper (Phase 2)
 |---|---|
 | UI | SwiftUI, macOS 13+ |
 | Concurrency | Swift `actor` for scan services, `@MainActor` view models |
-| Storage | JSON files (no external dependencies) |
-| Hashing | SHA-256 via CryptoKit |
+| Real-time monitoring | FSEvents (WatchService) with 2.5s + 1.5s debounce |
+| Storage | JSON files — no CoreData, no external dependencies |
+| Change detection | SHA-256 per-file hash via CryptoKit |
 | Helper IPC | XPC Service |
 | Launch at Login | `SMAppService` |
 
@@ -97,11 +135,54 @@ LatentGrainHelper            ← Privileged XPC helper (Phase 2)
 
 ## Roadmap
 
-- [x] **Phase 1** — Core MVP: scan, diff, Polaroid UI, menu-bar app
-- [x] **Phase 2** — Privileged helper for `/Library/LaunchDaemons` + Full Disk Access onboarding
-- [x] **Phase 3** — App icon, onboarding flow, animation polish
-- [x] **Phase 4** — Snapshot history, export (PDF/JSON), auto-scan on install *(freemium)*
-- [ ] **Phase 5** — Developer ID signing, notarization, DMG distribution
+- [x] **Phase 1** — Core MVP: scan, diff, Polaroid UI, menu-bar app, unit tests
+- [x] **Phase 2** — Full Disk Access detection, BTM scanning, FDA onboarding, Settings
+- [x] **Phase 3** — Real-time FSEvents monitoring (Watch mode), notifications, detection history, Pro gate
+- [x] **Phase 3.5** — First-launch onboarding, app icon, design polish, full-content search
+- [ ] **Phase 4** — StoreKit 2 purchase flow (replace `proMode` flag with real entitlement)
+- [ ] **Phase 5** — Developer ID signing, notarization, DMG release pipeline
+
+---
+
+## Creating a release DMG
+
+No Apple Developer account is required to build a distributable DMG. The result is unsigned — see the Gatekeeper note above.
+
+```bash
+# 1. Build a release archive in Xcode
+#    Product → Archive → Distribute App → Copy App → export to a folder
+
+# 2. Install create-dmg
+brew install create-dmg
+
+# 3. Package
+create-dmg \
+  --volname "LatentGrain" \
+  --window-size 540 380 \
+  --icon-size 128 \
+  --app-drop-link 380 180 \
+  "LatentGrain.dmg" \
+  "path/to/exported/LatentGrain.app"
+
+# 4. Upload LatentGrain.dmg as an asset on a GitHub Release
+```
+
+### Notarized release *(requires Apple Developer Program, $99/year)*
+
+```bash
+# After step 3 above:
+xcrun notarytool submit LatentGrain.dmg \
+  --apple-id "you@email.com" \
+  --team-id "YOURTEAMID" \
+  --keychain-profile "notarytool-profile" \
+  --wait
+
+xcrun stapler staple LatentGrain.dmg
+spctl -a -v LatentGrain.app   # verify
+```
+
+> Store your credentials once: `xcrun notarytool store-credentials "notarytool-profile" --apple-id "you@email.com" --team-id "YOURTEAMID" --password "app-specific-password"`
+> App-specific passwords are generated at [appleid.apple.com](https://appleid.apple.com).
 
 ---
 
@@ -113,11 +194,13 @@ LatentGrain/
 │   ├── App/                    AppDelegate, LatentGrainApp
 │   ├── Features/
 │   │   ├── Scan/               ScanView, ScanViewModel
-│   │   ├── Diff/               DiffView, PolaroidCardView
-│   │   ├── History/            HistoryView (premium gate)
+│   │   ├── Diff/               DiffView, PolaroidCardView, ItemRow
+│   │   ├── History/            HistoryView, DiffRecordRowView, DiffDetailView
+│   │   ├── Onboarding/         OnboardingView (5-step first-launch flow)
 │   │   └── Settings/           SettingsView
-│   ├── Models/                 PersistenceItem, Snapshot, Diff
-│   ├── Services/               ScanService, DiffService, StorageService
+│   ├── Models/                 PersistenceItem, Snapshot, Diff, DiffRecord
+│   ├── Services/               ScanService, DiffService, StorageService,
+│   │                           WatchService, FDAService, HelperService
 │   └── Utilities/              FileHasher, PlistParser
 ├── LatentGrainHelper/          Privileged XPC helper
 ├── Tests/                      DiffService + SnapshotService unit tests
@@ -125,47 +208,6 @@ LatentGrain/
 ```
 
 ---
-
-## Releasing *(Phase 5)*
-
-Requires an [Apple Developer Program](https://developer.apple.com/programs/) membership ($99/year) and a **Developer ID Application** certificate.
-
-```bash
-# 1. Archive
-#    Xcode → Product → Archive → Distribute App → Developer ID → export LatentGrain.app
-
-# 2. Package into a DMG (use create-dmg or Xcode Organizer)
-brew install create-dmg
-create-dmg \
-  --volname "LatentGrain" \
-  --window-size 540 380 \
-  --icon-size 128 \
-  --app-drop-link 380 180 \
-  "LatentGrain.dmg" \
-  "path/to/exported/LatentGrain.app"
-
-# 3. Notarize
-xcrun notarytool submit LatentGrain.dmg \
-  --apple-id "you@email.com" \
-  --team-id "YOURTEAMID" \
-  --keychain-profile "notarytool-profile" \
-  --wait
-
-# 4. Staple the notarization ticket so it works offline
-xcrun stapler staple LatentGrain.dmg
-
-# 5. Verify
-spctl -a -v LatentGrain.app
-```
-
-> **Keychain profile** — store your credentials once so you never type them again:
-> ```bash
-> xcrun notarytool store-credentials "notarytool-profile" \
->   --apple-id "you@email.com" \
->   --team-id "YOURTEAMID" \
->   --password "app-specific-password"
-> ```
-> Generate the app-specific password at [appleid.apple.com](https://appleid.apple.com).
 
 Made with love in Montreal.
 

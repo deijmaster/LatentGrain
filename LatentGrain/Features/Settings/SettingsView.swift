@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("launchAtLogin")    private var launchAtLogin    = false
     @AppStorage("autoScanEnabled")  private var autoScanEnabled  = false
     @AppStorage("proMode")          private var proMode          = false
+    @State private var isFDAGranted: Bool = FDAService.isGranted
 
     var body: some View {
         Form {
@@ -66,7 +67,7 @@ struct SettingsView: View {
             // MARK: Privacy
             Section("Privacy") {
                 LabeledContent("Full Disk Access") {
-                    if FDAService.isGranted {
+                    if isFDAGranted {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
@@ -114,6 +115,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 420, height: 420)
+        .onAppear { isFDAGranted = FDAService.isGranted }
     }
 
     // MARK: - Helpers

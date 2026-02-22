@@ -103,18 +103,25 @@ final class ScanViewModel: ObservableObject {
         storageService.clearPendingDiffPair()  // user started over — discard pending watch diff
     }
 
-    /// Inject a diff produced by WatchService so ScanView routes to diffContent() automatically.
-    /// The user still presses "Develop" to trigger the reveal animation.
-    func injectWatchDiff(_ diff: PersistenceDiff) {
+    /// Inject a diff produced by WatchService (not revealed — used internally).
+    private func injectWatchDiff(_ diff: PersistenceDiff) {
         beforeSnapshot = diff.before
         afterSnapshot  = diff.after
         currentDiff    = diff
         isDiffRevealed = false
     }
 
+    /// Inject a WatchService diff and immediately reveal results.
+    /// Used for auto-scan and notification-tap paths — no "Develop" step.
+    func injectAndRevealWatchDiff(_ diff: PersistenceDiff) {
+        injectWatchDiff(diff)
+        isDiffRevealed = true
+        storageService.clearPendingDiffPair()
+    }
+
     /// Called once on launch — restores any watch diff that was detected before the last quit.
     func tryLoadPendingDiff() {
         guard let diff = storageService.reconstructPendingDiff(using: diffService) else { return }
-        injectWatchDiff(diff)
+        injectAndRevealWatchDiff(diff)
     }
 }
