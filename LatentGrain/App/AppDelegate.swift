@@ -156,10 +156,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pop.appearance = NSAppearance(named: .darkAqua)
         pop.delegate = self
 
-        // Resize when diff is revealed
+        // Resize when diff is revealed.
+        // Deferred via async so SwiftUI renders the new isRevealed state first,
+        // then the popover container expands around the already-rendered content.
+        // Without the defer, NSPopover resizes synchronously mid-runloop, interrupting
+        // SwiftUI's pending update — the view re-lays out at the new size but with
+        // the old (unrevealed) state still rendered, requiring a second tap.
         revealCancellable = scanViewModel.$isDiffRevealed.sink { [weak pop] revealed in
-            let h: CGFloat = revealed ? 700 : 440
-            pop?.contentSize = NSSize(width: 380, height: h)
+            DispatchQueue.main.async {
+                pop?.contentSize = NSSize(width: 380, height: revealed ? 700 : 440)
+            }
         }
 
         return pop
