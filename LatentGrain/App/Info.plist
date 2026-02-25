@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App identity -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.latentgrain.app</string>
+    <key>CFBundleName</key>
+    <string>LatentGrain</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <!-- Hide from Dock — runs as menu-bar only -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <!-- macOS 13+ minimum -->
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+
+    <!-- Usage strings shown in System Settings → Privacy -->
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>LatentGrain reads persistence configuration files to detect what changed on your Mac.</string>
+    <key>NSSystemAdministrationUsageDescription</key>
+    <string>LatentGrain needs privileged access to scan system-level LaunchDaemons.</string>
+    <key>NSFileManagerUsageDescription</key>
+    <string>LatentGrain scans Background Task Management to show you every background agent and login item installed on your Mac.</string>
+
+    <!-- Notification usage — background persistence monitoring -->
+    <key>NSUserNotificationUsageDescription</key>
+    <string>LatentGrain notifies you when new background agents are installed on your Mac.</string>
+
+    <!-- Copyright -->
+    <key>NSHumanReadableCopyright</key>
+    <string>© 2026 deijmaster. All Rights Reserved.</string>
+</dict>
+</plist>
