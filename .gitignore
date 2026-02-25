@@ -1,0 +1,50 @@
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+build/
+
+# Xcode Previews
+PreviewReplays/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# CocoaPods (not used, just in case)
+Pods/
+
+# Credentials / secrets
+*.p12
+*.cer
+*.mobileprovision
+
+# Claude Code project context — local only
+CLAUDE.md
+.claude/
+
+# Local build artifacts
+LatentGrain.dmg
+staging/

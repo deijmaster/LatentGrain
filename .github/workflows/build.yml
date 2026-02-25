@@ -1,0 +1,61 @@
+name: Build DMG
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project LatentGrain.xcodeproj \
+            -scheme LatentGrain \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath ./build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM=""
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Package DMG
+        run: |
+          mkdir -p staging
+          cp -R ./build/Build/Products/Release/LatentGrain.app staging/
+          create-dmg \
+            --volname "LatentGrain" \
+            --window-size 540 380 \
+            --icon-size 128 \
+            --icon "LatentGrain.app" 160 180 \
+            --app-drop-link 380 180 \
+            LatentGrain.dmg \
+            staging/
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes 2>/dev/null || true
+          git push origin :refs/tags/latest 2>/dev/null || true
+          gh release create latest LatentGrain.dmg \
+            --title "LatentGrain 1.0" \
+            --prerelease \
+            --notes "LatentGrain 1.0 — latest build from \`main\` (commit \`${{ github.sha }}\`).
+
+          **Unsigned build.** Right-click → Open on first launch to bypass Gatekeeper."
