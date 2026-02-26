@@ -33,10 +33,6 @@ final class WatchService {
     func start() {
         callbackQueue.async { [weak self] in
             guard let self, !self.isRunning else { return }
-            // Request notification permission lazily on first start — not on every
-            // restartWithCurrentFDAState() call, which would re-request from a
-            // background queue on every FDA state change.
-            self.requestNotificationPermission()
             self.startStream()
         }
     }
@@ -62,16 +58,6 @@ final class WatchService {
     }
 
     // MARK: - Stream lifecycle (must run on callbackQueue)
-
-    private func requestNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
-            if !granted {
-                DispatchQueue.main.async {
-                    UserDefaults.standard.set(false, forKey: "autoScanEnabled")
-                }
-            }
-        }
-    }
 
     private func startStream() {
         lastKnownFDAState = FDAService.isGranted
@@ -179,28 +165,34 @@ final class WatchService {
             // Open the popover FIRST so willPresent can see isShown == true
             // and suppress the banner when the user is already at their Mac.
             self.onDiff(diff)
-            self.postNotification(for: diff)
+            if UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true {
+                self.postNotification(for: diff)
+            }
         }
     }
 
     // MARK: - Notification
 
     private func postNotification(for diff: PersistenceDiff) {
-        let n = diff.totalChanges
-        let s = n == 1 ? "" : "s"
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
 
-        let content       = UNMutableNotificationContent()
-        content.title     = "\(n) persistence change\(s) detected"
-        content.body      = summaryString(for: diff)
-        content.sound     = .default
-        content.userInfo  = ["action": "showDiff"]
+            let n = diff.totalChanges
+            let s = n == 1 ? "" : "s"
 
-        let request = UNNotificationRequest(
-            identifier: "com.latentgrain.watchchange.\(UUID())",
-            content:    content,
-            trigger:    nil
-        )
-        UNUserNotificationCenter.current().add(request)
+            let content       = UNMutableNotificationContent()
+            content.title     = "\(n) persistence change\(s) detected"
+            content.body      = self.summaryString(for: diff)
+            content.sound     = .default
+            content.userInfo  = ["action": "showDiff"]
+
+            let request = UNNotificationRequest(
+                identifier: "com.latentgrain.watchchange.\(UUID())",
+                content:    content,
+                trigger:    nil
+            )
+            UNUserNotificationCenter.current().add(request)
+        }
     }
 
     private func summaryString(for diff: PersistenceDiff) -> String {

@@ -58,6 +58,7 @@ struct PersistenceItem: Identifiable, Codable, Equatable, Hashable {
     let programPath: String?        // "Program" or ProgramArguments[0]
     let runAtLoad: Bool?
     let keepAlive: Bool?
+    let attribution: AppAttribution?
 
     // Equality is path + hash so we can detect modifications.
     static func == (lhs: PersistenceItem, rhs: PersistenceItem) -> Bool {
@@ -66,5 +67,23 @@ struct PersistenceItem: Identifiable, Codable, Equatable, Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(fullPath)
+    }
+
+    /// Returns a copy with attribution populated.
+    func withAttribution(_ attribution: AppAttribution) -> PersistenceItem {
+        PersistenceItem(
+            id: id,
+            filename: filename,
+            fullPath: fullPath,
+            location: location,
+            modificationDate: modificationDate,
+            fileSize: fileSize,
+            contentsHash: contentsHash,
+            label: label,
+            programPath: programPath,
+            runAtLoad: runAtLoad,
+            keepAlive: keepAlive,
+            attribution: attribution
+        )
     }
 }

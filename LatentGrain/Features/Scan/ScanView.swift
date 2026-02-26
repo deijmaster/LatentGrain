@@ -4,8 +4,8 @@ import AppKit
 struct ScanView: View {
 
     @ObservedObject var viewModel: ScanViewModel
-    @AppStorage("proMode") private var proMode = false
     @AppStorage("fdaBannerDismissed") private var fdaBannerDismissed = false
+    @AppStorage("compactMode") private var compactMode = false
 
     private var showFDABanner: Bool {
         !viewModel.isFDAGranted && !fdaBannerDismissed
@@ -98,8 +98,8 @@ struct ScanView: View {
     private var scanControls: some View {
         VStack(spacing: 0) {
             // Status area
-            if proMode {
-                ProStatusView(snapshot: viewModel.beforeSnapshot, isScanning: viewModel.isScanning)
+            if compactMode {
+                CompactStatusView(viewModel: viewModel)
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 6) {
@@ -413,38 +413,33 @@ enum ConversationScript {
     ]
 }
 
-// MARK: - Pro Mode status view
+// MARK: - Compact status view
 
-struct ProStatusView: View {
-    let snapshot: PersistenceSnapshot?
-    let isScanning: Bool
+struct CompactStatusView: View {
+    @ObservedObject var viewModel: ScanViewModel
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             Spacer()
-            if isScanning {
+            if viewModel.isScanning {
                 Text("Scanning…")
-                    .font(.system(size: 13, design: .monospaced))
+                    .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
-            } else if let snapshot {
-                Text("\(snapshot.itemCount) items catalogued")
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+            } else if let before = viewModel.beforeSnapshot {
+                Text("\(before.itemCount) items catalogued")
+                    .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.primary)
-                Text("Ready — hit Shoot when your app is installed.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                Text("Install an app, then shoot again")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.tertiary)
             } else {
-                Text("Ready to snapshot.")
-                    .font(.system(size: 13, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.primary)
-                Text("Hit Shoot before you install anything.")
-                    .font(.system(size: 11))
+                Text("Ready to snapshot")
+                    .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .frame(maxWidth: .infinity)
-        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -452,7 +447,6 @@ struct ProStatusView: View {
 
 struct ReadyToShootView: View {
     @State private var script: [ChatLine] = []
-    @AppStorage("proMode") private var proMode = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -462,9 +456,6 @@ struct ReadyToShootView: View {
                 } else {
                     UserBubble(text: line.text)
                 }
-            }
-            if !proMode {
-                ExpertBubble(text: "Been here before? You can skip all this — enable Pro Mode in Settings.")
             }
         }
         .padding(.horizontal, 16)

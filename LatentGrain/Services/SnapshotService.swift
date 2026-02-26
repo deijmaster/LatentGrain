@@ -114,7 +114,8 @@ actor SnapshotService {
             label: info.label,
             programPath: info.programPath,
             runAtLoad: info.runAtLoad,
-            keepAlive: info.keepAlive
+            keepAlive: info.keepAlive,
+            attribution: nil
         )
     }
 }

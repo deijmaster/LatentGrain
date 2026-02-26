@@ -18,6 +18,8 @@ struct DiffView: View {
             || (item.programPath?.localizedCaseInsensitiveContains(q) ?? false)
             || item.location.displayName.localizedCaseInsensitiveContains(q)
             || item.fullPath.localizedCaseInsensitiveContains(q)
+            || (item.attribution?.appName.localizedCaseInsensitiveContains(q) ?? false)
+            || (item.attribution?.bundleIdentifier?.localizedCaseInsensitiveContains(q) ?? false)
     }
 
     /// Autocomplete chips — drawn from every searchable field across the full snapshot.
@@ -33,6 +35,8 @@ struct DiffView: View {
         pool += allItems.compactMap(\.programPath)
             .map { URL(fileURLWithPath: $0).lastPathComponent }
             .filter { !$0.isEmpty }
+        pool += allItems.compactMap(\.attribution?.appName)
+        pool += allItems.compactMap(\.attribution?.bundleIdentifier)
 
         // Labels from changed items (may not be in after snapshot if removed)
         pool += diff.removed.compactMap(\.label)
@@ -244,6 +248,7 @@ struct ItemRow: View {
     let item: PersistenceItem
     var accent: Color? = nil
 
+    @AppStorage("showAttribution") private var showAttribution = true
     @State private var isHovered = false
 
     var body: some View {
@@ -268,6 +273,18 @@ struct ItemRow: View {
                             badge("runs at login")
                         } else if item.keepAlive == true {
                             badge("keeps running")
+                        }
+                    }
+
+                    if showAttribution, let attribution = item.attribution {
+                        HStack(spacing: 4) {
+                            Image(nsImage: NSWorkspace.shared.icon(forFile: attribution.appBundlePath))
+                                .resizable()
+                                .frame(width: 12, height: 12)
+                            Text(attribution.appName)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
 
