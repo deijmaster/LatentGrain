@@ -23,7 +23,8 @@ final class DiffServiceTests: XCTestCase {
             label: nil,
             programPath: nil,
             runAtLoad: nil,
-            keepAlive: nil
+            keepAlive: nil,
+            attribution: nil
         )
     }
 

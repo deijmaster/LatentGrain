@@ -25,7 +25,7 @@ Most of the time this is fine. But sometimes you want to know exactly what an in
 3. **Shoot After** — take a second snapshot.
 4. **Develop** — two Polaroid-style cards animate from dark to revealed, followed by a full diff: exactly what was **added**, **removed**, or **modified**, with file names, binary paths, and flags like "runs at login" or "keeps running".
 
-### Watch mode — automatic detection *(Pro)*
+### Watch mode — automatic detection
 
 Enable Watch Mode in Settings and LatentGrain monitors your persistence locations in real time using FSEvents. The moment a new agent installs itself — from an app update, a background installer, or anything else — you get a notification. No manual scanning needed.
 
@@ -33,17 +33,18 @@ Enable Watch Mode in Settings and LatentGrain monitors your persistence location
 
 ## Features
 
-| Feature | Free | Pro |
-|---|---|---|
-| Before/After manual scan | ✓ | ✓ |
-| All persistence locations | ✓ | ✓ |
-| Diff view (added/removed/modified) | ✓ | ✓ |
-| SHA-256 hash-based change detection | ✓ | ✓ |
-| "Runs at login" / "Keep alive" flags | ✓ | ✓ |
-| Reveal in Finder for any item | ✓ | ✓ |
-| Persistence Timeline | — | ✓ |
-| Watch mode (real-time FSEvents monitoring) | — | ✓ |
-| Instant notifications on change | — | ✓ |
+| Feature | |
+|---|---|
+| Before/After manual scan | ✓ |
+| All persistence locations | ✓ |
+| Diff view (added/removed/modified) | ✓ |
+| SHA-256 hash-based change detection | ✓ |
+| "Runs at login" / "Keep alive" flags | ✓ |
+| Reveal in Finder for any item | ✓ |
+| App attribution (resolve which app owns each item) | ✓ |
+| Persistence Timeline | ✓ |
+| Watch mode (real-time FSEvents monitoring) | ✓ |
+| Instant notifications on change | ✓ |
 
 **Other highlights:**
 - **Persistence Timeline** — vertical spine view showing every detection event; nodes alternate left/right with animated entrance; tap any event to see the full diff breakdown
@@ -139,17 +140,16 @@ LatentGrainHelper            ← Privileged XPC helper
 - **New app icon** — redesigned icon set with all required macOS sizes (@1x and @2x)
 - **Full Disk Access stability fixes** — three bugs in the FDA state tracking that caused crashes or unexpected behaviour when granting access or switching apps:
   - `lastKnownFDAState` was initialised to `false`, triggering a spurious FSEvents stream restart on every cold launch when FDA was already granted
-  - `restartWithCurrentFDAState()` ignored the `autoScanEnabled + proMode` gate, starting the stream even when Watch mode was off
+  - `restartWithCurrentFDAState()` ignored the `autoScanEnabled` gate, starting the stream even when Watch mode was off
   - Notification permission was re-requested from a background queue on every FDA state change instead of once on first start
 
 ## Roadmap
 
 - [x] Core scan + diff engine, Polaroid UI, menu-bar app, unit tests
 - [x] Full Disk Access detection, BTM scanning, FDA onboarding, Settings
-- [x] Real-time FSEvents Watch mode, notifications, Pro gate
+- [x] Real-time FSEvents Watch mode, notifications
 - [x] First-launch onboarding (5-step), frictionless FDA flow
 - [x] Persistence Timeline (vertical spine, Liquid Glass), redesigned app icon
-- [ ] StoreKit 2 purchase flow (replace `proMode` flag with real entitlement)
 - [ ] Developer ID signing + notarization
 
 ---

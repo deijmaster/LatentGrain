@@ -90,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        win.makeKeyAndOrderFront(nil)
+        win.orderFrontRegardless()
         activateApp()
     }
 
@@ -119,8 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func syncWatchService() {
         let enabled = UserDefaults.standard.bool(forKey: "autoScanEnabled")
-        let premium = UserDefaults.standard.bool(forKey: "proMode")
-        if enabled && premium { watchService?.start() } else { watchService?.stop() }
+        if enabled { watchService?.start() } else { watchService?.stop() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -261,13 +260,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        let proModeOn = UserDefaults.standard.bool(forKey: "proMode")
-        let proItem = NSMenuItem(title: "Pro Mode", action: #selector(toggleProMode), keyEquivalent: "p")
-        proItem.target = self
-        proItem.state = proModeOn ? .on : .off
-        proItem.image = NSImage(systemSymbolName: "crown.fill", accessibilityDescription: nil)
-        menu.addItem(proItem)
-
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         settingsItem.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
@@ -298,18 +290,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(url)
     }
 
-    @objc private func toggleProMode() {
-        let current = UserDefaults.standard.bool(forKey: "proMode")
-        UserDefaults.standard.set(!current, forKey: "proMode")
-    }
-
     @objc private func openSettings() { showSettingsWindow(nil) }
 
     // MARK: - Timeline window
 
     func showTimelineWindow() {
         if let existing = timelineWindow {
-            existing.makeKeyAndOrderFront(nil)
+            existing.orderFrontRegardless()
             activateApp()
             return
         }
@@ -337,14 +324,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         timelineWindow = win
         DispatchQueue.main.async {
-            win.makeKeyAndOrderFront(nil)
+            win.orderFrontRegardless()
             self.activateApp()
         }
     }
 
     @objc func showSettingsWindow(_ sender: Any?) {
         if let existing = settingsWindow {
-            existing.makeKeyAndOrderFront(nil)
+            existing.orderFrontRegardless()
             activateApp()
             return
         }
@@ -362,7 +349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Defer past the current run loop cycle so the menu/popover that
         // triggered this action has fully torn down before we activate.
         DispatchQueue.main.async {
-            win.makeKeyAndOrderFront(nil)
+            win.orderFrontRegardless()
             self.activateApp()
         }
     }
@@ -484,8 +471,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Calling restartWithCurrentFDAState() unconditionally was starting the stream
         // even when the user had auto-scan disabled.
         let enabled = UserDefaults.standard.bool(forKey: "autoScanEnabled")
-        let premium = UserDefaults.standard.bool(forKey: "proMode")
-        if enabled && premium {
+        if enabled {
             watchService?.restartWithCurrentFDAState()
         }
     }

@@ -3,8 +3,9 @@ import Foundation
 /// Orchestrates snapshot creation, optionally augmenting with privileged-helper data.
 actor ScanService {
 
-    private let snapshotService = SnapshotService()
-    private let helperService   = HelperService()
+    private let snapshotService     = SnapshotService()
+    private let helperService       = HelperService()
+    private let attributionService  = AttributionService()
 
     // MARK: - Public API
 
@@ -15,6 +16,12 @@ actor ScanService {
         // Augment with privileged locations if helper is connected
         if helperService.isConnected {
             snapshot = try await augmentWithPrivilegedData(snapshot: snapshot)
+        }
+
+        // Resolve app attribution for each item (skip when disabled in settings)
+        let attributionEnabled = UserDefaults.standard.object(forKey: "showAttribution") as? Bool ?? true
+        if attributionEnabled {
+            snapshot = await attributionService.attributeSnapshot(snapshot)
         }
 
         return snapshot
@@ -42,7 +49,8 @@ actor ScanService {
                 label: info.label,
                 programPath: info.programPath,
                 runAtLoad: info.runAtLoad,
-                keepAlive: info.keepAlive
+                keepAlive: info.keepAlive,
+                attribution: nil
             )
         }
 

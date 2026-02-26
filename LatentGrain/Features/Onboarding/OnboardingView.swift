@@ -273,8 +273,8 @@ private struct AutoScanStep: View {
 
                 OnboardingRow(
                     icon: "lock.shield.fill",
-                    label: "Requires Full Disk Access + Pro",
-                    description: "Enable Auto-Scan in Settings once permissions are in place"
+                    label: "Requires Full Disk Access",
+                    description: "Enable Auto-Scan in Settings once Full Disk Access is granted"
                 )
                 .padding(.horizontal, 14).padding(.vertical, 11)
             }

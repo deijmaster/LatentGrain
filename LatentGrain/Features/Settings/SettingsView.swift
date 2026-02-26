@@ -5,8 +5,10 @@ struct SettingsView: View {
 
     @AppStorage("launchAtLogin")    private var launchAtLogin    = false
     @AppStorage("autoScanEnabled")  private var autoScanEnabled  = false
-    @AppStorage("proMode")          private var proMode          = false
     @AppStorage("showMenuBarDot")   private var showMenuBarDot   = true
+    @AppStorage("notificationsEnabled") private var notificationsEnabled = true
+    @AppStorage("compactMode")      private var compactMode      = false
+    @AppStorage("showAttribution")  private var showAttribution  = true
     @State private var isFDAGranted: Bool = FDAService.isGranted
 
     var body: some View {
@@ -20,8 +22,6 @@ struct SettingsView: View {
                         applyLaunchAtLogin(enabled: newValue)
                     }
                 ))
-                Toggle("Pro Mode", isOn: $proMode)
-                    .help("Skip the guided chat — just the step indicator and action buttons.")
                 Toggle("Show status dot in menu bar", isOn: Binding(
                     get: { showMenuBarDot },
                     set: { newValue in withAnimation(.easeInOut(duration: 0.2)) { showMenuBarDot = newValue } }
@@ -66,22 +66,19 @@ struct SettingsView: View {
                 }
             }
 
-            // MARK: Scanning
-            Section("Scanning") {
-                Toggle(isOn: $autoScanEnabled) {
-                    HStack(spacing: 6) {
-                        Text("Auto-scan on App Install")
-                        Text("PREMIUM")
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.accentColor.opacity(0.8))
-                            .clipShape(Capsule())
-                    }
-                }
-                .disabled(!proMode)
-                .onChange(of: autoScanEnabled) { newValue in if newValue && !proMode { autoScanEnabled = false } }
-                .help("Watches persistence directories in the background and notifies you when something changes — Premium feature")
+            // MARK: Advanced
+            Section("Advanced") {
+                Toggle("Auto-scan on App Install", isOn: $autoScanEnabled)
+                .help("Watches persistence directories in the background and notifies you when something changes")
+
+                Toggle("Show Notifications", isOn: $notificationsEnabled)
+                .help("Post a system notification when auto-scan detects changes")
+
+                Toggle("Compact Mode", isOn: $compactMode)
+                .help("Replace conversation bubbles with a minimal status view")
+
+                Toggle("Show App Attribution", isOn: $showAttribution)
+                .help("Resolve which application owns each persistence item")
 
                 LabeledContent("Monitored Locations") {
                     VStack(alignment: .trailing, spacing: 4) {
