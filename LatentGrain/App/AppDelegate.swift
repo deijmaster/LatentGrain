@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var appearanceObserver: NSKeyValueObservation?
     private var watchService: WatchService?
     private var watchObserver: Any?
+    private var updateTimer: Timer?
     /// Tracks the FDA state as of the last `appDidBecomeActive` call so we only
     /// restart WatchService when it actually changes.  Kept here on @MainActor
     /// to avoid reading WatchService's internal state from a foreign thread.
@@ -49,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             scanViewModel.recheckFDA()
             scanViewModel.tryLoadPendingDiff()
             Task { await checkForUpdate() }
+            scheduleUpdateTimer()
         }
     }
 
@@ -95,9 +97,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkForUpdate() async {
-        guard let tag = await UpdateChecker.shared.fetchLatestTagIfNewer() else { return }
+        guard let tag = await UpdateChecker.shared.checkIfDue() else { return }
         scanViewModel.isUpdateAvailable = true
         scanViewModel.latestTag = tag
+    }
+
+    private func scheduleUpdateTimer() {
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                await self?.checkForUpdate()
+            }
+        }
     }
 
     // MARK: - Watch service
@@ -258,6 +268,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         foldersItem.submenu = foldersSubmenu
         menu.addItem(foldersItem)
 
+        if scanViewModel.isUpdateAvailable, let tag = scanViewModel.latestTag {
+            menu.addItem(.separator())
+            let updateItem = NSMenuItem(
+                title: "Update Available (\(tag))",
+                action: #selector(openReleasePage),
+                keyEquivalent: ""
+            )
+            updateItem.target = self
+            updateItem.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
+            menu.addItem(updateItem)
+        }
+
         menu.addItem(.separator())
 
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
@@ -287,6 +309,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openGitHub() {
         guard let url = URL(string: "https://github.com/deijmaster/LatentGrain") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    @objc private func openReleasePage() {
+        guard let tag = scanViewModel.latestTag,
+              let url = URL(string: "https://github.com/deijmaster/LatentGrain/releases/tag/\(tag)")
+        else { return }
         NSWorkspace.shared.open(url)
     }
 
@@ -399,7 +428,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupIconObservers() {
         scanViewModel.$isScanning
             .combineLatest(scanViewModel.$beforeSnapshot, scanViewModel.$currentDiff)
-            .combineLatest(scanViewModel.$isDiffRevealed)
+            .combineLatest(scanViewModel.$isDiffRevealed, scanViewModel.$isUpdateAvailable)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &iconObservers)
@@ -430,7 +459,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func makeMenuBarImage(dotColor: NSColor, filled: Bool) -> NSImage {
         let dim: CGFloat = 18
         let size = NSSize(width: dim, height: dim)
-
         return NSImage(size: size, flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext,
                   let base = NSImage(named: "MenuBarIcon"),

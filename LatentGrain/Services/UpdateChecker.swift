@@ -5,6 +5,26 @@ actor UpdateChecker {
     static let shared = UpdateChecker()
 
     private let apiURL = URL(string: "https://api.github.com/repos/deijmaster/LatentGrain/releases/latest")!
+    private static let lastCheckKey = "lastUpdateCheck"
+    private static let checkInterval: TimeInterval = 7 * 24 * 60 * 60  // 7 days
+
+    /// Checks for an update only if the user has opted in and at least 7 days have elapsed.
+    /// Returns the latest tag if newer, otherwise nil.
+    func checkIfDue() async -> String? {
+        // Default to true when the key has never been set
+        let enabled = UserDefaults.standard.object(forKey: "checkForUpdates") as? Bool ?? true
+        guard enabled else { return nil }
+
+        let now = Date()
+        if let last = UserDefaults.standard.object(forKey: Self.lastCheckKey) as? Date,
+           now.timeIntervalSince(last) < Self.checkInterval {
+            return nil
+        }
+
+        let result = await fetchLatestTagIfNewer()
+        UserDefaults.standard.set(now, forKey: Self.lastCheckKey)
+        return result
+    }
 
     /// Returns the latest release tag if it is newer than the running build, otherwise nil.
     func fetchLatestTagIfNewer() async -> String? {

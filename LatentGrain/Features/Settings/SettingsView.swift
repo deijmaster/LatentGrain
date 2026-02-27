@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @AppStorage("compactMode")      private var compactMode      = false
     @AppStorage("showAttribution")  private var showAttribution  = true
+    @AppStorage("checkForUpdates") private var checkForUpdates = true
     @State private var isFDAGranted: Bool = FDAService.isGranted
 
     var body: some View {
@@ -64,6 +65,9 @@ struct SettingsView: View {
                     }
                     .transition(.opacity)
                 }
+
+                Toggle("Check for updates", isOn: $checkForUpdates)
+                .help("Checks GitHub weekly for new releases")
             }
 
             // MARK: Advanced
