@@ -304,15 +304,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let rootView = TimelineView()
             .environmentObject(scanViewModel.storageService)
 
-        let controller = NSHostingController(rootView: rootView)
+        // Translucent background matching the popover aesthetic:
+        // NSVisualEffectView as the container, hosting view embedded inside.
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+
+        let visualEffect = NSVisualEffectView()
+        visualEffect.material = .popover
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+        visualEffect.addSubview(hostingView)
+        NSLayoutConstraint.activate([
+            hostingView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
+            hostingView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+        ])
+
+        let controller = NSViewController()
+        controller.view = visualEffect
+
         let win = NSWindow(contentViewController: controller)
         win.title = "Persistence Timeline"
         win.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
         win.titlebarAppearsTransparent = true
         win.titleVisibility = .hidden
         win.isMovableByWindowBackground = true
-        win.setContentSize(NSSize(width: 460, height: 640))
-        win.minSize = NSSize(width: 420, height: 400)
+        win.setContentSize(NSSize(width: 440, height: 640))
+        win.minSize = NSSize(width: 400, height: 400)
         win.maxSize = NSSize(width: 520, height: 900)
         win.appearance = NSAppearance(named: .darkAqua)
         win.isReleasedWhenClosed = false

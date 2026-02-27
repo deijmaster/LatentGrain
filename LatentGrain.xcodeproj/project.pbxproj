@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0395EC3713905C30F2B43E5E /* CardBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5889A8E920D4E15EBE5D901E /* CardBackground.swift */; };
 		04309603ECA780556B548DCF /* XPCProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0DBC632DBEFB93FF767BFF /* XPCProtocol.swift */; };
 		04C2BC8583815A4DFB7A51BA /* DiffServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEEE407EE7B5C10DCC266986 /* DiffServiceTests.swift */; };
 		0C721960DCA380FD246D603A /* DiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754E50CB7EC73CBF1FF969EC /* DiffView.swift */; };
@@ -92,6 +93,7 @@
 		3C08469F434EC2549218E933 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		3F2D27AAD078806D006049EA /* FileHasher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileHasher.swift; sourceTree = "<group>"; };
 		4ED38968EC87672B36D734BA /* WatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchService.swift; sourceTree = "<group>"; };
+		5889A8E920D4E15EBE5D901E /* CardBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardBackground.swift; sourceTree = "<group>"; };
 		5CAB998793E1C32723B08AC1 /* SnapshotServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotServiceTests.swift; sourceTree = "<group>"; };
 		66162476F7088892E2B9F07A /* LatentGrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LatentGrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		698C71D0E3B03E7107CA1D23 /* PersistenceItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceItem.swift; sourceTree = "<group>"; };
@@ -210,6 +212,7 @@
 		70B2D0B81434D30E4A33D401 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				5889A8E920D4E15EBE5D901E /* CardBackground.swift */,
 				3F2D27AAD078806D006049EA /* FileHasher.swift */,
 				F6CD71BCD7D2EC4E7242000A /* PlistParser.swift */,
 				1F9900AECCE86A5B5B50522E /* SearchBar.swift */,
@@ -417,6 +420,7 @@
 				5C63900A742888954AEC5C8A /* AppAttribution.swift in Sources */,
 				5A31F2D7135A567539F68E93 /* AppDelegate.swift in Sources */,
 				EF9751DEE9FAEFF16E5A6CD8 /* AttributionService.swift in Sources */,
+				0395EC3713905C30F2B43E5E /* CardBackground.swift in Sources */,
 				F5847B8108060D912E1AE9F4 /* DiffDetailView.swift in Sources */,
 				B65CB36ADF7FA81B9222839B /* DiffRecord.swift in Sources */,
 				733AF8A6CE965E93CB7A0D70 /* DiffService.swift in Sources */,

@@ -9,6 +9,7 @@ struct DiffDetailView: View {
     let storageService: StorageService
 
     @State private var diff: PersistenceDiff? = nil
+    @State private var isLoading = true
 
     var body: some View {
         Group {
@@ -16,6 +17,10 @@ struct DiffDetailView: View {
                 // Always revealed — user is reviewing history, not discovering for the first time
                 DiffView(diff: diff, isRevealed: true, showPolaroids: false) {}
                     .frame(maxHeight: .infinity)
+            } else if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle")
@@ -37,7 +42,11 @@ struct DiffDetailView: View {
     }
 
     private func reconstruct() {
-        guard let pair = storageService.snapshotPair(for: record) else { return }
+        guard let pair = storageService.snapshotPair(for: record) else {
+            isLoading = false
+            return
+        }
         diff = DiffService().diff(before: pair.before, after: pair.after)
+        isLoading = false
     }
 }
