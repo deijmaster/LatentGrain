@@ -103,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func scheduleUpdateTimer() {
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 60 * 60, repeats: true) { [weak self] _ in
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 7 * 24 * 60 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.checkForUpdate()
             }
