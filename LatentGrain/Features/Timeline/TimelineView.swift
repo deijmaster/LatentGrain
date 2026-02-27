@@ -6,6 +6,7 @@ struct TimelineView: View {
 
     @EnvironmentObject var storageService: StorageService
     @State private var selectedRecord: DiffRecord? = nil
+    @State private var expandedID: UUID? = nil
     @State private var appearedIndices: Set<Int> = []
 
     private var records: [DiffRecord] {
@@ -23,40 +24,34 @@ struct TimelineView: View {
                 emptyState
             } else {
                 ScrollView(.vertical, showsIndicators: true) {
-                    ZStack(alignment: .top) {
-                        // Central spine — runs full height
-                        spineBackground
-
-                        // Node rows — GlassEffectContainer on macOS 26+ for merge/morph
-                        let nodeRows = VStack(spacing: 28) {
-                            ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
-                                TimelineNodeView(
-                                    record: record,
-                                    isLeft: index % 2 == 0,
-                                    isAppeared: appearedIndices.contains(index)
-                                ) {
-                                    selectedRecord = record
-                                }
-                                .onAppear {
-                                    Task {
-                                        let delay = UInt64(Double(index) * 0.07 * 1_000_000_000)
-                                        try? await Task.sleep(nanoseconds: delay)
-                                        _ = withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
-                                            appearedIndices.insert(index)
-                                        }
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
+                            TimelineRowView(
+                                record: record,
+                                isFirst: index == 0,
+                                isLast: index == records.count - 1,
+                                isExpanded: expandedID == record.id,
+                                isAppeared: appearedIndices.contains(index),
+                                onToggleExpand: {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        expandedID = expandedID == record.id ? nil : record.id
+                                    }
+                                },
+                                onViewDetail: { selectedRecord = record },
+                                storageService: storageService
+                            )
+                            .onAppear {
+                                Task {
+                                    let delay = UInt64(Double(index) * 0.07 * 1_000_000_000)
+                                    try? await Task.sleep(nanoseconds: delay)
+                                    _ = withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
+                                        appearedIndices.insert(index)
                                     }
                                 }
                             }
                         }
-                        .padding(.vertical, 24)
-                        .padding(.horizontal, 12)
-
-                        if #available(macOS 26, *) {
-                            GlassEffectContainer(spacing: 28) { nodeRows }
-                        } else {
-                            nodeRows
-                        }
                     }
+                    .padding(.vertical, 12)
                 }
             }
         }
@@ -114,18 +109,6 @@ struct TimelineView: View {
         .frame(height: 52)
     }
 
-    // MARK: - Spine background
-
-    private var spineBackground: some View {
-        GeometryReader { geo in
-            Rectangle()
-                .fill(Color.white.opacity(0.15))
-                .frame(width: 2)
-                .frame(maxHeight: .infinity)
-                .position(x: geo.size.width / 2, y: geo.size.height / 2)
-        }
-    }
-
     // MARK: - Empty state
 
     private var emptyState: some View {
@@ -148,14 +131,18 @@ struct TimelineView: View {
     }
 }
 
-// MARK: - TimelineNodeView
+// MARK: - TimelineRowView
 
-struct TimelineNodeView: View {
+struct TimelineRowView: View {
 
     let record: DiffRecord
-    let isLeft: Bool
+    let isFirst: Bool
+    let isLast: Bool
+    let isExpanded: Bool
     let isAppeared: Bool
-    let onTap: () -> Void
+    let onToggleExpand: () -> Void
+    let onViewDetail: () -> Void
+    let storageService: StorageService
 
     private var accentColor: Color {
         if record.addedCount > 0 { return .accentColor }
@@ -164,53 +151,46 @@ struct TimelineNodeView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Left card slot (190pt)
-            Group {
-                if isLeft {
-                    TimelineCardView(record: record, accentColor: accentColor, isLeft: true, onTap: onTap)
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(width: 190)
+        HStack(alignment: .top, spacing: 0) {
+            // Leading gutter — vertical line + dot
+            gutter
+                .frame(width: 24)
 
-            // Spine column (40pt) — dot + connector
-            ZStack {
-                // Horizontal connector line
-                if isLeft {
-                    HStack(spacing: 0) {
-                        Color.white.opacity(0.2)
-                            .frame(width: 20, height: 1)
-                        Spacer()
-                    }
-                } else {
-                    HStack(spacing: 0) {
-                        Spacer()
-                        Color.white.opacity(0.2)
-                            .frame(width: 20, height: 1)
-                    }
-                }
-
-                // Spine dot
-                Circle()
-                    .fill(accentColor)
-                    .frame(width: 10, height: 10)
-            }
-            .frame(width: 40)
-
-            // Right card slot (190pt)
-            Group {
-                if !isLeft {
-                    TimelineCardView(record: record, accentColor: accentColor, isLeft: false, onTap: onTap)
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(width: 190)
+            // Card
+            TimelineCardView(
+                record: record,
+                accentColor: accentColor,
+                isExpanded: isExpanded,
+                onToggleExpand: onToggleExpand,
+                onViewDetail: onViewDetail,
+                storageService: storageService
+            )
+            .padding(.trailing, 14)
+            .padding(.vertical, 6)
         }
+        .padding(.leading, 10)
         .opacity(isAppeared ? 1 : 0)
-        .offset(x: isAppeared ? 0 : (isLeft ? -16 : 16))
+        .offset(y: isAppeared ? 0 : 12)
+    }
+
+    private var gutter: some View {
+        VStack(spacing: 0) {
+            // Top connector
+            Rectangle()
+                .fill(isFirst ? .clear : Color.white.opacity(0.15))
+                .frame(width: 2, height: 14)
+
+            // Dot
+            Circle()
+                .fill(accentColor)
+                .frame(width: 8, height: 8)
+
+            // Bottom connector
+            Rectangle()
+                .fill(isLast ? .clear : Color.white.opacity(0.15))
+                .frame(width: 2)
+                .frame(maxHeight: .infinity)
+        }
     }
 }
 
@@ -220,74 +200,90 @@ struct TimelineCardView: View {
 
     let record: DiffRecord
     let accentColor: Color
-    let isLeft: Bool
-    let onTap: () -> Void
+    let isExpanded: Bool
+    let onToggleExpand: () -> Void
+    let onViewDetail: () -> Void
+    let storageService: StorageService
 
     @State private var isHovered = false
 
     var body: some View {
-        Button(action: onTap) {
-            ZStack(alignment: .leading) {
-                // Full-frame hit area — Spacer and overlay don't register taps
-                Color.clear
-                // Inner accent bar — on the spine-facing edge
-                if isLeft {
-                    HStack(spacing: 0) { Spacer(); accentBar }
-                } else {
-                    HStack(spacing: 0) { accentBar; Spacer() }
+        VStack(alignment: .leading, spacing: 0) {
+            // Main card content
+            HStack(spacing: 0) {
+                // Leading accent bar
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(accentColor)
+                    .frame(width: 3)
+                    .padding(.vertical, 8)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    // Header row
+                    HStack(spacing: 6) {
+                        sourceBadge
+                        Text(record.timestamp.formatted(date: .abbreviated, time: .shortened))
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        Spacer()
+                    }
+
+                    // Pills row
+                    HStack(spacing: 4) {
+                        if record.addedCount > 0 {
+                            changePill("+\(record.addedCount)", color: .green)
+                        }
+                        if record.removedCount > 0 {
+                            changePill("-\(record.removedCount)", color: .red)
+                        }
+                        if record.modifiedCount > 0 {
+                            changePill("~\(record.modifiedCount)", color: .orange)
+                        }
+                        if record.isEmpty {
+                            changePill("no changes", color: .secondary)
+                        }
+                    }
                 }
-                content
+                .padding(.leading, 10)
+                .padding(.trailing, 6)
+                .padding(.vertical, 10)
+
+                Spacer(minLength: 0)
+
+                // Expand chevron
+                Button(action: onToggleExpand) {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+                .padding(.trailing, 6)
             }
-            .contentShape(Rectangle())
+
+            // Inline expansion
+            if isExpanded {
+                Divider()
+                    .padding(.horizontal, 10)
+                InlineExpansionView(
+                    record: record,
+                    storageService: storageService,
+                    onViewDetail: onViewDetail
+                )
+            }
         }
-        .buttonStyle(.plain)
-        .focusable(false)
-        .frame(width: 175, height: 72)
-        .modifier(TimelineCardBackgroundModifier(accentColor: accentColor, isHovered: isHovered))
-        .padding(isLeft ? .trailing : .leading, 8)
+        .cardBackground(accent: accentColor, hovered: isHovered)
         .onHover { isHovered = $0 }
         .animation(.easeInOut(duration: 0.12), value: isHovered)
-    }
-
-    private var accentBar: some View {
-        RoundedRectangle(cornerRadius: 2)
-            .fill(accentColor)
-            .frame(width: 3)
-            .padding(.vertical, 8)
-    }
-
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                sourceBadge
-                Text(record.timestamp.formatted(date: .abbreviated, time: .shortened))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-
-            HStack(spacing: 4) {
-                if record.addedCount > 0 {
-                    changePill("+\(record.addedCount)", color: .green)
-                }
-                if record.removedCount > 0 {
-                    changePill("-\(record.removedCount)", color: .red)
-                }
-                if record.modifiedCount > 0 {
-                    changePill("~\(record.modifiedCount)", color: .orange)
-                }
-            }
-        }
-        .padding(.leading, isLeft ? 10 : 14)
-        .padding(.trailing, isLeft ? 14 : 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var sourceBadge: some View {
         let isAuto = record.source == "Auto"
         return Text(isAuto ? "AUTO" : "SCAN")
-            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
             .foregroundStyle(isAuto ? Color.accentColor : .secondary)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
@@ -303,7 +299,7 @@ struct TimelineCardView: View {
 
     private func changePill(_ text: String, color: Color) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(color)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -312,27 +308,143 @@ struct TimelineCardView: View {
     }
 }
 
-// MARK: - TimelineCardBackgroundModifier
+// MARK: - InlineExpansionView
 
-/// macOS 26+: Liquid Glass with rounded-rect shape.
-/// macOS 13–25: plain opacity background + accent border — the existing dark aesthetic.
-struct TimelineCardBackgroundModifier: ViewModifier {
-    let accentColor: Color
-    let isHovered: Bool
+struct InlineExpansionView: View {
 
-    func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            content
-                .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 10))
-        } else {
-            content
-                .background(.white.opacity(isHovered ? 0.08 : 0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(accentColor.opacity(0.2), lineWidth: 0.5)
-                )
+    let record: DiffRecord
+    let storageService: StorageService
+    let onViewDetail: () -> Void
+
+    @State private var diff: PersistenceDiff? = nil
+    @State private var isLoading = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if isLoading {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .controlSize(.small)
+                    Spacer()
+                }
+                .padding(.vertical, 10)
+            } else if let diff {
+                // Location chips
+                if !changedLocations(diff).isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 4) {
+                            ForEach(changedLocations(diff), id: \.self) { location in
+                                Text(location.displayName)
+                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(.white.opacity(0.06))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                    }
+                }
+
+                // Added
+                if !diff.added.isEmpty {
+                    itemSection("Added", items: diff.added, color: .green)
+                }
+
+                // Removed
+                if !diff.removed.isEmpty {
+                    itemSection("Removed", items: diff.removed, color: .red)
+                }
+
+                // Modified
+                if !diff.modified.isEmpty {
+                    let modItems = diff.modified.map(\.after)
+                    itemSection("Modified", items: modItems, color: .orange)
+                }
+
+                // View full detail button
+                Button(action: onViewDetail) {
+                    HStack(spacing: 4) {
+                        Text("View Full Detail")
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+                .focusable(false)
+            } else {
+                Text("Snapshots no longer available")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .task(id: record.id) {
+            await loadDiff()
+        }
+    }
+
+    private func loadDiff() async {
+        isLoading = true
+        guard let pair = storageService.snapshotPair(for: record) else {
+            isLoading = false
+            return
+        }
+        let result = await Task.detached(priority: .userInitiated) {
+            DiffService().diff(before: pair.before, after: pair.after)
+        }.value
+        diff = result
+        isLoading = false
+    }
+
+    private func changedLocations(_ diff: PersistenceDiff) -> [PersistenceLocation] {
+        var locations = Set<PersistenceLocation>()
+        for item in diff.added { locations.insert(item.location) }
+        for item in diff.removed { locations.insert(item.location) }
+        for pair in diff.modified { locations.insert(pair.after.location) }
+        return PersistenceLocation.allCases.filter { locations.contains($0) }
+    }
+
+    private func itemSection(_ title: String, items: [PersistenceItem], color: Color) -> some View {
+        let capped = Array(items.prefix(5))
+        let overflow = items.count - capped.count
+
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(color)
+
+            ForEach(capped) { item in
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 5, height: 5)
+                    Text(item.filename)
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(item.location.displayName)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+
+            if overflow > 0 {
+                Text("+ \(overflow) more")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 10)
+            }
         }
     }
 }
-

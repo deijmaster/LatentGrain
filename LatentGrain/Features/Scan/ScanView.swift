@@ -55,12 +55,7 @@ struct ScanView: View {
                     FDABanner { fdaBannerDismissed = true }
                 }
             }
-            .background(.white.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
-            )
+            .cardBackground()
             .padding(.horizontal, 12)
             .padding(.top, 6)
             .padding(.bottom, 2)
