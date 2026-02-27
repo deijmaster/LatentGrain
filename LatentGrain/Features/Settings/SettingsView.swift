@@ -145,10 +145,6 @@ struct SettingsView: View {
                     Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—")
                         .font(.system(.body, design: .monospaced))
                 }
-                LabeledContent("Build") {
-                    Text(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—")
-                        .font(.system(.body, design: .monospaced))
-                }
             }
         }
         .formStyle(.grouped)
