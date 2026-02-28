@@ -16,4 +16,13 @@ struct PersistenceDiff: Identifiable {
     var totalChanges: Int {
         added.count + removed.count + modified.count
     }
+
+    /// Raw values of locations that had any change — for persisting in `DiffRecord`.
+    var affectedLocationValues: [String] {
+        var locations = Set<PersistenceLocation>()
+        for item in added { locations.insert(item.location) }
+        for item in removed { locations.insert(item.location) }
+        for pair in modified { locations.insert(pair.after.location) }
+        return PersistenceLocation.allCases.filter { locations.contains($0) }.map(\.rawValue)
+    }
 }

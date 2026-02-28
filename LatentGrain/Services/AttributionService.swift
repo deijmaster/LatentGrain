@@ -142,15 +142,9 @@ actor AttributionService {
     /// Read signing info from the program binary and match the team ID against known apps.
     private func resolveByCodeSignature(_ item: PersistenceItem) -> AppAttribution? {
         guard let programPath = item.programPath else { return nil }
-        let url = URL(fileURLWithPath: programPath) as CFURL
+        let url = URL(fileURLWithPath: programPath)
 
-        var staticCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(url, [], &staticCode) == errSecSuccess,
-              let code = staticCode else { return nil }
-
-        var cfInfo: CFDictionary?
-        guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &cfInfo) == errSecSuccess,
-              let info = cfInfo as? [String: Any] else { return nil }
+        guard let info = readSigningInfo(from: url) else { return nil }
 
         // Extract team ID from signing info
         if let teamID = info["teamid"] as? String, !teamID.isEmpty {
@@ -207,15 +201,20 @@ actor AttributionService {
 
     /// Read the code-signing team ID from an app bundle.
     private func readTeamID(from appURL: URL) -> String? {
+        readSigningInfo(from: appURL)?["teamid"] as? String
+    }
+
+    /// Shared helper — creates a SecStaticCode and copies its signing information dictionary.
+    private func readSigningInfo(from url: URL) -> [String: Any]? {
         var staticCode: SecStaticCode?
-        guard SecStaticCodeCreateWithPath(appURL as CFURL, [], &staticCode) == errSecSuccess,
+        guard SecStaticCodeCreateWithPath(url as CFURL, [], &staticCode) == errSecSuccess,
               let code = staticCode else { return nil }
 
         var cfInfo: CFDictionary?
         guard SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &cfInfo) == errSecSuccess,
               let info = cfInfo as? [String: Any] else { return nil }
 
-        return info["teamid"] as? String
+        return info
     }
 
     // MARK: - Helpers
@@ -233,18 +232,9 @@ actor AttributionService {
             ?? plist["CFBundleName"] as? String
             ?? appURL.deletingPathExtension().lastPathComponent
 
-        let teamID = readTeamID(from: appURL)
-
-        var signingIdentity: String?
-        var staticCode: SecStaticCode?
-        if SecStaticCodeCreateWithPath(appURL as CFURL, [], &staticCode) == errSecSuccess,
-           let code = staticCode {
-            var cfInfo: CFDictionary?
-            if SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &cfInfo) == errSecSuccess,
-               let info = cfInfo as? [String: Any] {
-                signingIdentity = info[kSecCodeInfoIdentifier as String] as? String
-            }
-        }
+        let signingInfo = readSigningInfo(from: appURL)
+        let teamID = signingInfo?["teamid"] as? String
+        let signingIdentity = signingInfo?[kSecCodeInfoIdentifier as String] as? String
 
         return AppAttribution(
             appName: displayName,

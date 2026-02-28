@@ -23,6 +23,7 @@
 		5C63900A742888954AEC5C8A /* AppAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2551803EF7280F6A4C05B71 /* AppAttribution.swift */; };
 		60516DA2DC76B07AC83612D6 /* FDAService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B528B99F8C9BCEC67C559156 /* FDAService.swift */; };
 		62A064BD52DA05716A4237AC /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C08469F434EC2549218E933 /* OnboardingView.swift */; };
+		67D48E04F68182D1071C9BD7 /* ProfileScanService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03AE20A0FF377BA7D28AC869 /* ProfileScanService.swift */; };
 		733AF8A6CE965E93CB7A0D70 /* DiffService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28280C9F636AF11D7B04D457 /* DiffService.swift */; };
 		7BF2B18C0D409916DBBFC99E /* UserNotifications.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 01C6CED56D993CE48DF7BABA /* UserNotifications.framework */; };
 		85C38A758986693D46E7AA06 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 36BF24E034670AE6E9F60CA3 /* Assets.xcassets */; };
@@ -37,6 +38,7 @@
 		C57C1B9A072B411650AE83A5 /* LatentGrainHelper.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = 27A5546B1572A013154FD995 /* LatentGrainHelper.xpc */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C764C5D9E3B8C5C43217E943 /* WatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED38968EC87672B36D734BA /* WatchService.swift */; };
 		D059539A53E31F20AA621FC8 /* SnapshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B9C80EEF434E646A23190B1 /* SnapshotService.swift */; };
+		E1EFFB0B1FE1B917AE6205A8 /* ProfileParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D71C9CCA3D207AACEC30CE7 /* ProfileParser.swift */; };
 		E4A7C117C88346CFDDB03717 /* PolaroidCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4D8BEEDC2372FA024969DF /* PolaroidCardView.swift */; };
 		E90C78AAE26E71A72D2579A9 /* CoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5131F368039DF5C56F403DF /* CoreServices.framework */; };
 		ECBCFF3066B448CDD10E1E50 /* ScanViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B4575866797D080F26F575 /* ScanViewModel.swift */; };
@@ -80,6 +82,7 @@
 /* Begin PBXFileReference section */
 		01C6CED56D993CE48DF7BABA /* UserNotifications.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UserNotifications.framework; path = System/Library/Frameworks/UserNotifications.framework; sourceTree = SDKROOT; };
 		02F28D9553936EA4F106AFCE /* ScanService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanService.swift; sourceTree = "<group>"; };
+		03AE20A0FF377BA7D28AC869 /* ProfileScanService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileScanService.swift; sourceTree = "<group>"; };
 		0B20627438F4EA851659C13F /* StorageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageService.swift; sourceTree = "<group>"; };
 		13752E395D1E73C5963936CE /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		1F9900AECCE86A5B5B50522E /* SearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchBar.swift; sourceTree = "<group>"; };
@@ -99,6 +102,7 @@
 		698C71D0E3B03E7107CA1D23 /* PersistenceItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistenceItem.swift; sourceTree = "<group>"; };
 		74BB931965F1614C4A481897 /* LatentGrainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatentGrainApp.swift; sourceTree = "<group>"; };
 		754E50CB7EC73CBF1FF969EC /* DiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffView.swift; sourceTree = "<group>"; };
+		7D71C9CCA3D207AACEC30CE7 /* ProfileParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileParser.swift; sourceTree = "<group>"; };
 		9B0EDD8F6043C78DE0027932 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9B6BE0167CC1023C0596F170 /* DiffRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffRecord.swift; sourceTree = "<group>"; };
 		A5B4575866797D080F26F575 /* ScanViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanViewModel.swift; sourceTree = "<group>"; };
@@ -159,6 +163,7 @@
 				28280C9F636AF11D7B04D457 /* DiffService.swift */,
 				B528B99F8C9BCEC67C559156 /* FDAService.swift */,
 				AA71EBE0B7FB04BDC1E28401 /* HelperService.swift */,
+				03AE20A0FF377BA7D28AC869 /* ProfileScanService.swift */,
 				02F28D9553936EA4F106AFCE /* ScanService.swift */,
 				2B9C80EEF434E646A23190B1 /* SnapshotService.swift */,
 				0B20627438F4EA851659C13F /* StorageService.swift */,
@@ -215,6 +220,7 @@
 				5889A8E920D4E15EBE5D901E /* CardBackground.swift */,
 				3F2D27AAD078806D006049EA /* FileHasher.swift */,
 				F6CD71BCD7D2EC4E7242000A /* PlistParser.swift */,
+				7D71C9CCA3D207AACEC30CE7 /* ProfileParser.swift */,
 				1F9900AECCE86A5B5B50522E /* SearchBar.swift */,
 			);
 			path = Utilities;
@@ -435,6 +441,8 @@
 				5BA6746D1C0A2E8A7A32E961 /* PersistenceSnapshot.swift in Sources */,
 				98657F43244B5FC0D4651D94 /* PlistParser.swift in Sources */,
 				E4A7C117C88346CFDDB03717 /* PolaroidCardView.swift in Sources */,
+				E1EFFB0B1FE1B917AE6205A8 /* ProfileParser.swift in Sources */,
+				67D48E04F68182D1071C9BD7 /* ProfileScanService.swift in Sources */,
 				FCCD99DDFE99DBB8FAAEF560 /* ScanService.swift in Sources */,
 				319623EC21DB529067E6DF9C /* ScanView.swift in Sources */,
 				ECBCFF3066B448CDD10E1E50 /* ScanViewModel.swift in Sources */,
@@ -491,7 +499,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_SANDBOX = NO;
 				INFOPLIST_FILE = LatentGrain/App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -499,7 +507,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 3;
+				MARKETING_VERSION = 4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.latentgrain.app;
 				PRODUCT_NAME = LatentGrain;
 				SDKROOT = macosx;
@@ -654,7 +662,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_SANDBOX = NO;
 				INFOPLIST_FILE = LatentGrain/App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -662,7 +670,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 3;
+				MARKETING_VERSION = 4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.latentgrain.app;
 				PRODUCT_NAME = LatentGrain;
 				SDKROOT = macosx;

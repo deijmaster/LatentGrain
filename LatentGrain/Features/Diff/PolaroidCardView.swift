@@ -47,9 +47,9 @@ struct PolaroidCardView: View {
 
     private var undevelopedOverlay: some View {
         VStack(spacing: 4) {
-            Text("⬛")
-                .font(.system(size: 28))
-                .opacity(0.15)
+            Rectangle()
+                .fill(.white.opacity(0.15))
+                .frame(width: 28, height: 28)
             Text("undeveloped")
                 .font(.system(size: 8, weight: .medium, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.2))
@@ -108,7 +108,7 @@ struct PolaroidCardView: View {
                 .textCase(.uppercase)
 
             if let snapshot {
-                Text(snapshot.timestamp, style: .time)
+                Text(snapshot.timestamp.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.colon)))
                     .font(.system(size: 9, design: .monospaced))
                     .foregroundStyle(Color(red: 0.55, green: 0.52, blue: 0.48))
             } else {

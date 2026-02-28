@@ -20,6 +20,7 @@ struct DiffView: View {
             || item.fullPath.localizedCaseInsensitiveContains(q)
             || (item.attribution?.appName.localizedCaseInsensitiveContains(q) ?? false)
             || (item.attribution?.bundleIdentifier?.localizedCaseInsensitiveContains(q) ?? false)
+            || item.location.shortName.localizedCaseInsensitiveContains(q)
     }
 
     /// Autocomplete chips — drawn from every searchable field across the full snapshot.
@@ -42,18 +43,18 @@ struct DiffView: View {
         pool += diff.removed.compactMap(\.label)
         pool += diff.removed.map(\.filename)
 
-        // Location display names
+        // Location display names and short names
         pool += PersistenceLocation.allCases.map(\.displayName)
+        pool += PersistenceLocation.allCases.map(\.shortName)
 
         // Change-type keywords
         pool += ["added", "removed", "modified"]
 
-        return Array(Set(
-            pool.filter { !$0.isEmpty && $0.lowercased().contains(q) && $0.lowercased() != q }
-        ))
-        .sorted()
-        .prefix(8)
-        .map { $0 }
+        return Array(
+            Set(pool.filter { !$0.isEmpty && $0.lowercased().contains(q) && $0.lowercased() != q })
+                .sorted()
+                .prefix(8)
+        )
     }
 
     var body: some View {
@@ -88,6 +89,7 @@ struct DiffView: View {
                 Button("Develop", action: onDevelop)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
+                    .focusable(false)
                 Text("tap to reveal what changed")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
@@ -188,13 +190,13 @@ struct DiffView: View {
     }
 
     private func itemGroup(title: String, items: [PersistenceItem], accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased())
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .kerning(0.8)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 ForEach(items) { item in
                     ItemRow(item: item, accent: accent)
                 }
@@ -229,9 +231,9 @@ struct DiffView: View {
                             .foregroundStyle(.tertiary)
                             .kerning(0.5)
 
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 6) {
                             ForEach(filtered) { item in
-                                ItemRow(item: item)
+                                ItemRow(item: item, showLocationBadge: false)
                             }
                         }
                     }
@@ -247,6 +249,7 @@ struct ItemRow: View {
 
     let item: PersistenceItem
     var accent: Color? = nil
+    var showLocationBadge: Bool = true
 
     @AppStorage("showAttribution") private var showAttribution = true
     @State private var isHovered = false
@@ -262,27 +265,35 @@ struct ItemRow: View {
             }
 
             HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(item.filename)
-                            .font(.system(.callout, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-
-                        if item.runAtLoad == true {
-                            badge("runs at login")
-                        } else if item.keepAlive == true {
-                            badge("keeps running")
+                VStack(alignment: .leading, spacing: 6) {
+                    // Badge row — location + behavior
+                    if showLocationBadge || item.runAtLoad == true || item.keepAlive == true {
+                        HStack(spacing: 5) {
+                            if showLocationBadge {
+                                locationBadge(item.location)
+                            }
+                            if item.location == .configurationProfiles && item.runAtLoad == true {
+                                badge("managed")
+                            } else if item.runAtLoad == true {
+                                badge("runs at login")
+                            } else if item.keepAlive == true {
+                                badge("keeps running")
+                            }
                         }
                     }
+
+                    Text(item.filename)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
                     if showAttribution, let attribution = item.attribution {
                         HStack(spacing: 4) {
                             Image(nsImage: NSWorkspace.shared.icon(forFile: attribution.appBundlePath))
                                 .resizable()
-                                .frame(width: 12, height: 12)
+                                .frame(width: 14, height: 14)
                             Text(attribution.appName)
-                                .font(.system(size: 10, design: .monospaced))
+                                .font(.system(size: 12, design: .monospaced))
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
@@ -290,7 +301,7 @@ struct ItemRow: View {
 
                     if let program = item.programPath {
                         Text(program)
-                            .font(.system(size: 10, design: .monospaced))
+                            .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -300,14 +311,14 @@ struct ItemRow: View {
                 Spacer()
 
                 Button("Open") { revealInFinder() }
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .buttonStyle(.plain)
                     .focusable(false)
                     .foregroundStyle(isHovered ? Color.accentColor : .secondary)
                     .onHover { isHovered = $0 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
             .background(accent != nil
                 ? Color(nsColor: .controlBackgroundColor).opacity(0.6)
@@ -321,12 +332,26 @@ struct ItemRow: View {
         )
     }
 
+    private func locationBadge(_ location: PersistenceLocation) -> some View {
+        let color = location.badgeColor
+        return Text(location.shortName)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.1))
+            .overlay(
+                Capsule().strokeBorder(color.opacity(0.3), lineWidth: 1)
+            )
+            .clipShape(Capsule())
+    }
+
     private func badge(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 9, weight: .medium))
+            .font(.system(size: 10, weight: .medium))
             .foregroundStyle(Color.orange)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
             .background(Color.orange.opacity(0.1))
             .overlay(
                 Capsule().strokeBorder(Color.orange.opacity(0.4), lineWidth: 1)
@@ -335,11 +360,42 @@ struct ItemRow: View {
     }
 
     private func revealInFinder() {
+        if item.location == .configurationProfiles {
+            // Open System Settings > Profiles pane
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Profiles") {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
+        if item.location == .userTCC || item.location == .systemTCC {
+            // Open System Settings > Privacy & Security pane (macOS 13+ Ventura scheme)
+            if let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension") {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
         let fileURL = URL(fileURLWithPath: item.fullPath)
         if FileManager.default.fileExists(atPath: item.fullPath) {
             NSWorkspace.shared.activateFileViewerSelecting([fileURL])
         } else {
             NSWorkspace.shared.open(URL(fileURLWithPath: item.location.resolvedPath))
+        }
+    }
+}
+
+// MARK: - Location badge color
+
+extension PersistenceLocation {
+    var badgeColor: Color {
+        switch self {
+        case .userLaunchAgents:        return .blue
+        case .systemLaunchAgents:      return .indigo
+        case .systemLaunchDaemons:     return .purple
+        case .systemExtensions:        return .teal
+        case .backgroundTaskMgmt:      return .orange
+        case .configurationProfiles:   return .pink
+        case .userTCC:                 return .yellow
+        case .systemTCC:               return .red
         }
     }
 }
