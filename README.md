@@ -185,3 +185,11 @@ Made with love in Montreal.
 Source available, non-commercial — © 2026 deijmaster. Personal use and forks welcome. Commercial use requires written permission. See [LICENSE](LICENSE).
 
 *Built with Swift + SwiftUI. No Electron was harmed in the making of this app.*
+
+<svg viewBox="0 0 100 20" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font: 14px monospace; fill: #24292f; }
+    @media (prefers-color-scheme: dark) { text { fill: #c9d1d9; } }
+  </style>
+  <text x="5" y="15">Your dark GitHub Page content</text>
+</svg>
