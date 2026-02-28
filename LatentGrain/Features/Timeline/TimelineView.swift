@@ -8,6 +8,9 @@ struct TimelineView: View {
     @State private var selectedRecord: DiffRecord? = nil
     @State private var expandedID: UUID? = nil
     @State private var appearedIndices: Set<Int> = []
+    @State private var showClearAllConfirm = false
+    @State private var isSelecting = false
+    @State private var selectedIDs: Set<UUID> = []
 
     private var records: [DiffRecord] {
         storageService.diffRecords.reversed()
@@ -26,20 +29,57 @@ struct TimelineView: View {
                 ScrollView(.vertical, showsIndicators: true) {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
-                            TimelineRowView(
-                                record: record,
-                                isFirst: index == 0,
-                                isLast: index == records.count - 1,
-                                isExpanded: expandedID == record.id,
-                                isAppeared: appearedIndices.contains(index),
-                                onToggleExpand: {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        expandedID = expandedID == record.id ? nil : record.id
-                                    }
-                                },
-                                onViewDetail: { selectedRecord = record },
-                                storageService: storageService
-                            )
+                            HStack(spacing: 0) {
+                                if isSelecting {
+                                    Image(systemName: selectedIDs.contains(record.id) ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(selectedIDs.contains(record.id) ? Color.accentColor : .secondary)
+                                        .frame(width: 28)
+                                        .padding(.leading, 6)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                if selectedIDs.contains(record.id) {
+                                                    selectedIDs.remove(record.id)
+                                                } else {
+                                                    selectedIDs.insert(record.id)
+                                                }
+                                            }
+                                        }
+                                        .transition(.move(edge: .leading).combined(with: .opacity))
+                                }
+
+                                TimelineRowView(
+                                    record: record,
+                                    isFirst: index == 0,
+                                    isLast: index == records.count - 1,
+                                    isExpanded: !isSelecting && expandedID == record.id,
+                                    isAppeared: appearedIndices.contains(index),
+                                    onToggleExpand: {
+                                        if isSelecting {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                if selectedIDs.contains(record.id) {
+                                                    selectedIDs.remove(record.id)
+                                                } else {
+                                                    selectedIDs.insert(record.id)
+                                                }
+                                            }
+                                        } else {
+                                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                                expandedID = expandedID == record.id ? nil : record.id
+                                            }
+                                        }
+                                    },
+                                    onViewDetail: { selectedRecord = record },
+                                    onDelete: {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            if expandedID == record.id { expandedID = nil }
+                                            storageService.deleteDiffRecord(id: record.id)
+                                        }
+                                    },
+                                    storageService: storageService
+                                )
+                            }
                             .onAppear {
                                 Task {
                                     let delay = UInt64(Double(index) * 0.07 * 1_000_000_000)
@@ -88,7 +128,7 @@ struct TimelineView: View {
                 VStack(spacing: 1) {
                     Text(record.source == "Auto" ? "Auto Detection" : "Manual Scan")
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    Text(record.timestamp.formatted(date: .abbreviated, time: .shortened))
+                    Text(record.timestamp.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.colon)))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -105,8 +145,87 @@ struct TimelineView: View {
                     }
                 }
             }
+
+            HStack(spacing: 8) {
+                Spacer()
+                if selectedRecord == nil, !records.isEmpty {
+                    if isSelecting {
+                        if !selectedIDs.isEmpty {
+                            Button {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    for id in selectedIDs {
+                                        storageService.deleteDiffRecord(id: id)
+                                    }
+                                    selectedIDs.removeAll()
+                                    expandedID = nil
+                                }
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text("\(selectedIDs.count)")
+                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                }
+                                .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .focusable(false)
+                            .help("Delete selected events")
+                        }
+
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                isSelecting = false
+                                selectedIDs.removeAll()
+                            }
+                        } label: {
+                            Text("Done")
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundStyle(Color.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+                    } else {
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                isSelecting = true
+                                expandedID = nil
+                            }
+                        } label: {
+                            Text("Select")
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+
+                        Button {
+                            showClearAllConfirm = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+                        .help("Clear all timeline events")
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
         }
         .frame(height: 52)
+        .alert("Clear Timeline", isPresented: $showClearAllConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear All", role: .destructive) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    expandedID = nil
+                    storageService.deleteAllDiffRecords()
+                }
+            }
+        } message: {
+            Text("This will remove all timeline events. This cannot be undone.")
+        }
     }
 
     // MARK: - Empty state
@@ -142,9 +261,11 @@ struct TimelineRowView: View {
     let isAppeared: Bool
     let onToggleExpand: () -> Void
     let onViewDetail: () -> Void
+    let onDelete: () -> Void
     let storageService: StorageService
 
     private var accentColor: Color {
+        if record.isEmpty { return .green }
         if record.addedCount > 0 { return .accentColor }
         if record.removedCount > 0 { return .red }
         return .orange
@@ -163,8 +284,11 @@ struct TimelineRowView: View {
                 isExpanded: isExpanded,
                 onToggleExpand: onToggleExpand,
                 onViewDetail: onViewDetail,
+                onDelete: onDelete,
                 storageService: storageService
             )
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onToggleExpand)
             .padding(.trailing, 14)
             .padding(.vertical, 6)
         }
@@ -203,6 +327,7 @@ struct TimelineCardView: View {
     let isExpanded: Bool
     let onToggleExpand: () -> Void
     let onViewDetail: () -> Void
+    let onDelete: () -> Void
     let storageService: StorageService
 
     @State private var isHovered = false
@@ -217,51 +342,45 @@ struct TimelineCardView: View {
                     .frame(width: 3)
                     .padding(.vertical, 8)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    // Header row
-                    HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Top row — location pills (where), source badge (how), timestamp, chevron
+                    HStack(spacing: 5) {
+                        ForEach(record.resolvedLocations, id: \.rawValue) { location in
+                            locationPill(location)
+                        }
                         sourceBadge
-                        Text(record.timestamp.formatted(date: .abbreviated, time: .shortened))
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text(record.timestamp.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.colon)))
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
-                        Spacer()
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.tertiary)
                     }
+                    .padding(.bottom, 8)
 
-                    // Pills row
+                    // Bottom row — change pills
                     HStack(spacing: 4) {
                         if record.addedCount > 0 {
-                            changePill("+\(record.addedCount)", color: .green)
+                            changePill("+\(record.addedCount) added", color: .green)
                         }
                         if record.removedCount > 0 {
-                            changePill("-\(record.removedCount)", color: .red)
+                            changePill("-\(record.removedCount) removed", color: .red)
                         }
                         if record.modifiedCount > 0 {
-                            changePill("~\(record.modifiedCount)", color: .orange)
+                            changePill("~\(record.modifiedCount) modified", color: .orange)
                         }
                         if record.isEmpty {
-                            changePill("no changes", color: .secondary)
+                            changePill("no changes", color: .green)
                         }
+
+                        Spacer(minLength: 0)
                     }
                 }
-                .padding(.leading, 10)
-                .padding(.trailing, 6)
+                .padding(.horizontal, 10)
                 .padding(.vertical, 10)
-
-                Spacer(minLength: 0)
-
-                // Expand chevron
-                Button(action: onToggleExpand) {
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .focusable(false)
-                .padding(.trailing, 6)
             }
 
             // Inline expansion
@@ -271,7 +390,8 @@ struct TimelineCardView: View {
                 InlineExpansionView(
                     record: record,
                     storageService: storageService,
-                    onViewDetail: onViewDetail
+                    onViewDetail: onViewDetail,
+                    onDelete: onDelete
                 )
             }
         }
@@ -283,7 +403,7 @@ struct TimelineCardView: View {
     private var sourceBadge: some View {
         let isAuto = record.source == "Auto"
         return Text(isAuto ? "AUTO" : "SCAN")
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
             .foregroundStyle(isAuto ? Color.accentColor : .secondary)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
@@ -306,6 +426,20 @@ struct TimelineCardView: View {
             .background(color.opacity(0.12))
             .clipShape(Capsule())
     }
+
+    private func locationPill(_ location: PersistenceLocation) -> some View {
+        let color = location.badgeColor
+        return Text(location.shortName)
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.1))
+            .overlay(
+                Capsule().strokeBorder(color.opacity(0.3), lineWidth: 0.5)
+            )
+            .clipShape(Capsule())
+    }
 }
 
 // MARK: - InlineExpansionView
@@ -315,6 +449,7 @@ struct InlineExpansionView: View {
     let record: DiffRecord
     let storageService: StorageService
     let onViewDetail: () -> Void
+    let onDelete: () -> Void
 
     @State private var diff: PersistenceDiff? = nil
     @State private var isLoading = true
@@ -330,23 +465,6 @@ struct InlineExpansionView: View {
                 }
                 .padding(.vertical, 10)
             } else if let diff {
-                // Location chips
-                if !changedLocations(diff).isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 4) {
-                            ForEach(changedLocations(diff), id: \.self) { location in
-                                Text(location.displayName)
-                                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 3)
-                                    .background(.white.opacity(0.06))
-                                    .clipShape(Capsule())
-                            }
-                        }
-                    }
-                }
-
                 // Added
                 if !diff.added.isEmpty {
                     itemSection("Added", items: diff.added, color: .green)
@@ -363,26 +481,48 @@ struct InlineExpansionView: View {
                     itemSection("Modified", items: modItems, color: .orange)
                 }
 
-                // View full detail button
-                Button(action: onViewDetail) {
-                    HStack(spacing: 4) {
-                        Text("View Full Detail")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .semibold))
+                // Actions row
+                HStack {
+                    Button(action: onViewDetail) {
+                        HStack(spacing: 4) {
+                            Text("View Full Detail")
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.accentColor)
                     }
-                    .foregroundStyle(Color.accentColor)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                    .buttonStyle(.plain)
+                    .focusable(false)
+
+                    Spacer()
+
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .focusable(false)
+                    .help("Delete this event")
                 }
-                .buttonStyle(.plain)
-                .focusable(false)
+                .padding(.vertical, 6)
             } else {
-                Text("Snapshots no longer available")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                HStack {
+                    Text("Snapshots no longer available")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .focusable(false)
+                    .help("Delete this event")
+                }
+                .padding(.vertical, 8)
             }
         }
         .padding(.horizontal, 10)
@@ -403,14 +543,13 @@ struct InlineExpansionView: View {
         }.value
         diff = result
         isLoading = false
-    }
 
-    private func changedLocations(_ diff: PersistenceDiff) -> [PersistenceLocation] {
-        var locations = Set<PersistenceLocation>()
-        for item in diff.added { locations.insert(item.location) }
-        for item in diff.removed { locations.insert(item.location) }
-        for pair in diff.modified { locations.insert(pair.after.location) }
-        return PersistenceLocation.allCases.filter { locations.contains($0) }
+        // Backfill affectedLocations for old records that predate this field
+        if record.affectedLocations.isEmpty, !result.affectedLocationValues.isEmpty {
+            var updated = record
+            updated.affectedLocations = result.affectedLocationValues
+            storageService.updateDiffRecord(updated)
+        }
     }
 
     private func itemSection(_ title: String, items: [PersistenceItem], color: Color) -> some View {
@@ -432,10 +571,6 @@ struct InlineExpansionView: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                     Spacer()
-                    Text(item.location.displayName)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
                 }
             }
 

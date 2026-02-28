@@ -75,14 +75,15 @@ final class ScanViewModel: ObservableObject {
 
             // Record this diff in history
             storageService.saveDiffRecord(DiffRecord(
-                id:               UUID(),
-                beforeSnapshotID: before.id,
-                afterSnapshotID:  snapshot.id,
-                timestamp:        snapshot.timestamp,
-                addedCount:       diff.added.count,
-                removedCount:     diff.removed.count,
-                modifiedCount:    diff.modified.count,
-                source:           "Manual"
+                id:                UUID(),
+                beforeSnapshotID:  before.id,
+                afterSnapshotID:   snapshot.id,
+                timestamp:         snapshot.timestamp,
+                addedCount:        diff.added.count,
+                removedCount:      diff.removed.count,
+                modifiedCount:     diff.modified.count,
+                source:            "Manual",
+                affectedLocations: diff.affectedLocationValues
             ))
         } catch {
             scanError = error.localizedDescription

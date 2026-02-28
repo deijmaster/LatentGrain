@@ -11,15 +11,25 @@ final class WatchService {
     private var lastKnownFDAState: Bool = false
     private var isRunning = false
 
+    /// Timestamp when the stream was last started. Notifications are suppressed
+    /// for `graceInterval` seconds after each start to avoid noisy alerts from
+    /// boot-time churn or first-install filesystem activity.
+    private var streamStartDate: Date = .distantPast
+    private let graceInterval: TimeInterval = 60
+
     private let scanService   = ScanService()
     private let diffService   = DiffService()
     private let storage: StorageService
     private let onDiff: DiffHandler
+    /// Returns `true` when the main UI is visible — lets us skip posting
+    /// notifications entirely (not just suppress the banner).
+    private let isUIVisible: () -> Bool
     private let callbackQueue = DispatchQueue(label: "com.latentgrain.watch", qos: .utility)
 
-    init(storage: StorageService, onDiff: @escaping DiffHandler) {
-        self.storage = storage
-        self.onDiff  = onDiff
+    init(storage: StorageService, isUIVisible: @escaping () -> Bool = { false }, onDiff: @escaping DiffHandler) {
+        self.storage     = storage
+        self.isUIVisible = isUIVisible
+        self.onDiff      = onDiff
     }
 
     deinit {
@@ -62,10 +72,13 @@ final class WatchService {
     private func startStream() {
         lastKnownFDAState = FDAService.isGranted
 
-        // BTM path requires FDA; all others are world-readable
-        let paths = PersistenceLocation.allCases
-            .filter { !$0.requiresElevation || lastKnownFDAState }
-            .map    { $0.resolvedPath }
+        // BTM/TCC paths require FDA; all others are world-readable.
+        // Use watchPath (parent dir for single-file locations) and deduplicate.
+        let paths = Array(Set(
+            PersistenceLocation.allCases
+                .filter { !$0.requiresElevation || lastKnownFDAState }
+                .map    { $0.watchPath }
+        ))
 
         guard !paths.isEmpty else { return }
 
@@ -97,8 +110,9 @@ final class WatchService {
         // Assign before scheduling so the reference is visible to any
         // code that runs after FSEventStreamStart (serial queue guarantees
         // ordering, but explicit assignment order removes all ambiguity).
-        stream    = newStream
-        isRunning = true
+        stream         = newStream
+        isRunning      = true
+        streamStartDate = Date()
         FSEventStreamSetDispatchQueue(newStream, callbackQueue)
         FSEventStreamStart(newStream)
     }
@@ -149,23 +163,32 @@ final class WatchService {
 
             // Persist a DiffRecord so History survives app restarts
             self.storage.saveDiffRecord(DiffRecord(
-                id:               UUID(),
-                beforeSnapshotID: baseline.id,
-                afterSnapshotID:  fresh.id,
-                timestamp:        fresh.timestamp,
-                addedCount:       diff.added.count,
-                removedCount:     diff.removed.count,
-                modifiedCount:    diff.modified.count,
-                source:           "Auto"
+                id:                UUID(),
+                beforeSnapshotID:  baseline.id,
+                afterSnapshotID:   fresh.id,
+                timestamp:         fresh.timestamp,
+                addedCount:        diff.added.count,
+                removedCount:      diff.removed.count,
+                modifiedCount:     diff.modified.count,
+                source:            "Auto",
+                affectedLocations: diff.affectedLocationValues
             ))
 
             // Persist the pending pair so the orange dot survives a restart
             self.storage.savePendingDiffPair(beforeID: baseline.id, afterID: fresh.id)
 
-            // Open the popover FIRST so willPresent can see isShown == true
-            // and suppress the banner when the user is already at their Mac.
+            // Show the results in the popover unconditionally.
             self.onDiff(diff)
-            if UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true {
+
+            // Only post a system notification when ALL of:
+            // 1. User hasn't disabled notifications
+            // 2. The popover isn't already showing (no need to buzz when looking at results)
+            // 3. Grace period has elapsed (avoids noisy alerts from boot/install churn)
+            let notificationsEnabled = UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
+            let withinGrace = Date().timeIntervalSince(self.streamStartDate) < self.graceInterval
+            let uiVisible = self.isUIVisible()
+
+            if notificationsEnabled && !uiVisible && !withinGrace {
                 self.postNotification(for: diff)
             }
         }
@@ -202,14 +225,16 @@ final class WatchService {
             let grouped = Dictionary(grouping: diff.added, by: \.location)
             for (location, items) in grouped.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
                 let n = items.count
-                parts.append("\(n) agent\(n == 1 ? "" : "s") added in \(location.displayName)")
+                let noun = Self.noun(for: location, count: n)
+                parts.append("\(n) \(noun) added in \(location.displayName)")
             }
         }
         if !diff.removed.isEmpty {
             let grouped = Dictionary(grouping: diff.removed, by: \.location)
             for (location, items) in grouped.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
                 let n = items.count
-                parts.append("\(n) agent\(n == 1 ? "" : "s") removed in \(location.displayName)")
+                let noun = Self.noun(for: location, count: n)
+                parts.append("\(n) \(noun) removed in \(location.displayName)")
             }
         }
         if !diff.modified.isEmpty {
@@ -218,6 +243,17 @@ final class WatchService {
         }
 
         return parts.joined(separator: ", ")
+    }
+
+    /// Location-aware noun for notification strings.
+    private static func noun(for location: PersistenceLocation, count: Int) -> String {
+        let singular: String
+        switch location {
+        case .configurationProfiles: singular = "profile"
+        case .userTCC, .systemTCC:   singular = "TCC database"
+        default: singular = "agent"
+        }
+        return count == 1 ? singular : singular + "s"
     }
 }
 

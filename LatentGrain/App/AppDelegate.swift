@@ -46,11 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
             showOnboardingWindow()
         } else {
-            setupWatchService()
-            scanViewModel.recheckFDA()
-            scanViewModel.tryLoadPendingDiff()
-            Task { await checkForUpdate() }
-            scheduleUpdateTimer()
+            completeOnboarding()
         }
     }
 
@@ -59,10 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.onboardingWindow?.orderOut(nil)
             self.onboardingWindow = nil
-            self.setupWatchService()
-            self.scanViewModel.recheckFDA()
-            self.scanViewModel.tryLoadPendingDiff()
-            Task { await self.checkForUpdate() }
+            self.completeOnboarding()
             self.showPopover()
         }
         let controller = NSHostingController(rootView: rootView)
@@ -86,14 +79,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
                 self.onboardingWindow = nil
-                self.setupWatchService()
-                self.scanViewModel.recheckFDA()
-                self.scanViewModel.tryLoadPendingDiff()
+                self.completeOnboarding()
             }
         }
 
         win.orderFrontRegardless()
         activateApp()
+    }
+
+    private func completeOnboarding() {
+        setupWatchService()
+        scanViewModel.recheckFDA()
+        scanViewModel.tryLoadPendingDiff()
+        Task { await checkForUpdate() }
+        scheduleUpdateTimer()
     }
 
     private func checkForUpdate() async {
@@ -113,11 +112,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Watch service
 
     private func setupWatchService() {
-        watchService = WatchService(storage: scanViewModel.storageService) { [weak self] diff in
+        watchService = WatchService(
+            storage: scanViewModel.storageService,
+            isUIVisible: { [weak self] in self?.popover?.isShown == true }
+        ) { [weak self] diff in
             // Already on @MainActor — WatchService calls onDiff from Task { @MainActor }.
-            // No DispatchQueue.main.async needed; keeping it synchronous ensures the popover
-            // is shown before postNotification runs, so willPresent correctly suppresses
-            // the banner when the user is already looking at the results.
             self?.scanViewModel.injectAndRevealWatchDiff(diff)
             self?.showPopover()
         }

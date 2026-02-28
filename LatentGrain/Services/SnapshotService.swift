@@ -3,6 +3,8 @@ import Foundation
 /// Scans persistence locations and builds `PersistenceSnapshot` objects.
 actor SnapshotService {
 
+    private let profileScanService = ProfileScanService()
+
     // MARK: - Public API
 
     func createSnapshot(label: String) async throws -> PersistenceSnapshot {
@@ -16,7 +18,17 @@ actor SnapshotService {
         if FDAService.isGranted {
             let btmItems = (try? await scanBTMLocation()) ?? []
             items.append(contentsOf: btmItems)
+
+            for location in PersistenceLocation.allCases where location.isSingleFile && location.requiresElevation {
+                if let item = scanSingleFile(location) {
+                    items.append(item)
+                }
+            }
         }
+
+        // Configuration profiles — scanned via `profiles` CLI, no FDA needed
+        let profileItems = await profileScanService.scanProfiles()
+        items.append(contentsOf: profileItems)
 
         let sorted = items.sorted { $0.fullPath < $1.fullPath }
         let combinedHashes = sorted.map(\.contentsHash).joined()
@@ -32,6 +44,33 @@ actor SnapshotService {
     }
 
     // MARK: - Private helpers
+
+    private func scanSingleFile(_ location: PersistenceLocation) -> PersistenceItem? {
+        let path = location.resolvedPath
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: path),
+              let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+              let contentsHash = FileHasher.sha256(of: url)
+        else { return nil }
+
+        let modDate  = attrs[.modificationDate] as? Date ?? Date()
+        let fileSize = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+
+        return PersistenceItem(
+            id: UUID(),
+            filename: url.lastPathComponent,
+            fullPath: path,
+            location: location,
+            modificationDate: modDate,
+            fileSize: fileSize,
+            contentsHash: contentsHash,
+            label: nil,
+            programPath: nil,
+            runAtLoad: nil,
+            keepAlive: nil,
+            attribution: nil
+        )
+    }
 
     private func scanLocation(_ location: PersistenceLocation) async throws -> [PersistenceItem] {
         let path = location.resolvedPath

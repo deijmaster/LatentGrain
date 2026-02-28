@@ -70,6 +70,13 @@ final class StorageService: ObservableObject {
         persistDiffRecords()
     }
 
+    func updateDiffRecord(_ record: DiffRecord) {
+        if let idx = diffRecords.firstIndex(where: { $0.id == record.id }) {
+            diffRecords[idx] = record
+            persistDiffRecords()
+        }
+    }
+
     func deleteDiffRecord(id: UUID) {
         diffRecords.removeAll { $0.id == id }
         persistDiffRecords()
@@ -112,12 +119,6 @@ final class StorageService: ObservableObject {
         return diffService.diff(before: before, after: after)
     }
 
-    /// Alias used internally — avoids Swift naming collision between the `snapshots` property
-    /// and a method that also starts with `snapshots`.
-    private func findSnapshot(id: UUID) -> PersistenceSnapshot? {
-        snapshots.first { $0.id == id }
-    }
-
     // MARK: - Private — load
 
     private func load() {
@@ -152,11 +153,17 @@ final class StorageService: ObservableObject {
 
     private func write<T: Encodable>(_ value: T, to url: URL) {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        guard let data = try? encoder.encode(value) else { return }
-        try? data.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes(
-            [.posixPermissions: 0o600],
-            ofItemAtPath: url.path
-        )
+        do {
+            let data = try encoder.encode(value)
+            try data.write(to: url, options: .atomic)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: url.path
+            )
+        } catch {
+            #if DEBUG
+            print("[StorageService] write failed for \(url.lastPathComponent): \(error)")
+            #endif
+        }
     }
 }

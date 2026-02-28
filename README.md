@@ -42,6 +42,9 @@ Enable Watch Mode in Settings and LatentGrain monitors your persistence location
 | Diff view (added/removed/modified) | ✓ |
 | SHA-256 hash-based change detection | ✓ |
 | "Runs at login" / "Keep alive" flags | ✓ |
+| TCC database monitoring (permission tampering detection) | ✓ |
+| Configuration Profiles scanning | ✓ |
+| Color-coded location tags per finding | ✓ |
 | Reveal in Finder for any item | ✓ |
 | App attribution (resolve which app owns each item) | ✓ |
 | Persistence Timeline | ✓ |
@@ -66,8 +69,11 @@ Enable Watch Mode in Settings and LatentGrain monitors your persistence location
 | `/Library/SystemExtensions` | Kernel/network extensions | None |
 | `/Library/LaunchDaemons` | System daemons (run as root) | None |
 | Background Task Management DB | Everything macOS silently registers | Full Disk Access |
+| Configuration Profiles | MDM and configuration profiles | Full Disk Access |
+| User TCC Database | Per-user privacy permissions | Full Disk Access |
+| System TCC Database | System-wide privacy permissions | Full Disk Access |
 
-> The Background Task Management database (`/private/var/db/com.apple.backgroundtaskmanagement`) is where macOS registers **all** persistent items — including ones that never appear in the other folders. It's the most complete picture available, and it's the reason Full Disk Access is requested.
+> The Background Task Management database (`/private/var/db/com.apple.backgroundtaskmanagement`) is where macOS registers **all** persistent items — including ones that never appear in the other folders. The TCC databases (`com.apple.TCC/TCC.db`) track which apps have been granted privacy permissions — a known attack surface for permission tampering. Both are reasons Full Disk Access is requested.
 
 ---
 
@@ -136,6 +142,33 @@ LatentGrainHelper            ← Privileged XPC helper
 
 ---
 
+## Changelog
+
+### v4
+- **TCC database monitoring** — tracks user and system TCC databases (`com.apple.TCC/TCC.db`) for permission changes, a known attack surface (CVE-2022-26712). Opens Privacy & Security settings on tap.
+- **Configuration Profiles scanning** — detects MDM and configuration profile changes via `profiles` CLI
+- **Color-coded location tags** — each persistence location has its own color (blue for User Agents, indigo for System Agents, purple for Daemons, teal for Extensions, orange for BTM, pink for Profiles, yellow/red for TCC). Visible on timeline cards and diff item rows.
+- **Redesigned timeline cards** — top row shows location pills + detection method (AUTO/SCAN) + timestamp; bottom row shows change counts. Clearer visual hierarchy.
+- **Improved detail view cards** — badges moved above filename for full-width details, larger fonts, more breathing room between lines
+
+### v3
+- **New app icon** — redesigned icon set with all required macOS sizes (@1x and @2x)
+- **Full Disk Access stability fixes** — three bugs in the FDA state tracking that caused crashes or unexpected behaviour when granting access or switching apps:
+  - `lastKnownFDAState` was initialised to `false`, triggering a spurious FSEvents stream restart on every cold launch when FDA was already granted
+  - `restartWithCurrentFDAState()` ignored the `autoScanEnabled` gate, starting the stream even when Watch mode was off
+  - Notification permission was re-requested from a background queue on every FDA state change instead of once on first start
+
+## Roadmap
+
+- [x] Core scan + diff engine, Polaroid UI, menu-bar app, unit tests
+- [x] Full Disk Access detection, BTM scanning, FDA onboarding, Settings
+- [x] Real-time FSEvents Watch mode, notifications
+- [x] First-launch onboarding (5-step), frictionless FDA flow
+- [x] Persistence Timeline (vertical spine, Liquid Glass), redesigned app icon
+- [x] TCC monitoring, color-coded location tags, improved detail cards
+- [ ] Developer ID signing + notarization
+
+---
 ## Creating a release DMG
 
 No Apple Developer account is required to build a distributable DMG. The result is unsigned — see the Gatekeeper note above.
