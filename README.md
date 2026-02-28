@@ -2,9 +2,9 @@
 
 > *The fine detail of what's hiding on your Mac.*
 
-I got tired of staring at daemons and launch agents on my Macs, and yes, I love bananas — so I made this.
-
 LatentGrain is a macOS menu-bar utility that **photographs your persistence layer** before and after you install anything, then shows you exactly what changed. Think of it as a darkroom for your Mac: shoot before, install, shoot after, develop — and the film reveals what's been hiding.
+
+I got tired of staring at daemons and launch agents on my Macs, and yes, I love bananas — so I made this.
 
 ---
 
@@ -131,17 +131,6 @@ LatentGrainHelper            ← Privileged XPC helper
 | Change detection | SHA-256 per-file hash via CryptoKit |
 | Helper IPC | XPC Service |
 | Launch at Login | `SMAppService` |
-
----
-
-## Changelog
-
-### Latest
-- **New app icon** — redesigned icon set with all required macOS sizes (@1x and @2x)
-- **Full Disk Access stability fixes** — three bugs in the FDA state tracking that caused crashes or unexpected behaviour when granting access or switching apps:
-  - `lastKnownFDAState` was initialised to `false`, triggering a spurious FSEvents stream restart on every cold launch when FDA was already granted
-  - `restartWithCurrentFDAState()` ignored the `autoScanEnabled` gate, starting the stream even when Watch mode was off
-  - Notification permission was re-requested from a background queue on every FDA state change instead of once on first start
 
 ---
 
