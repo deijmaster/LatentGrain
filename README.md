@@ -143,15 +143,6 @@ LatentGrainHelper            ← Privileged XPC helper
   - `restartWithCurrentFDAState()` ignored the `autoScanEnabled` gate, starting the stream even when Watch mode was off
   - Notification permission was re-requested from a background queue on every FDA state change instead of once on first start
 
-## Roadmap
-
-- [x] Core scan + diff engine, Polaroid UI, menu-bar app, unit tests
-- [x] Full Disk Access detection, BTM scanning, FDA onboarding, Settings
-- [x] Real-time FSEvents Watch mode, notifications
-- [x] First-launch onboarding (5-step), frictionless FDA flow
-- [x] Persistence Timeline (vertical spine, Liquid Glass), redesigned app icon
-- [ ] Developer ID signing + notarization
-
 ---
 
 ## Creating a release DMG
@@ -176,25 +167,6 @@ create-dmg \
 
 # 4. Upload LatentGrain.dmg as an asset on a GitHub Release
 ```
-
-### Notarized release *(requires Apple Developer Program, $99/year)*
-
-```bash
-# After step 3 above:
-xcrun notarytool submit LatentGrain.dmg \
-  --apple-id "you@email.com" \
-  --team-id "YOURTEAMID" \
-  --keychain-profile "notarytool-profile" \
-  --wait
-
-xcrun stapler staple LatentGrain.dmg
-spctl -a -v LatentGrain.app   # verify
-```
-
-> Store your credentials once: `xcrun notarytool store-credentials "notarytool-profile" --apple-id "you@email.com" --team-id "YOURTEAMID" --password "app-specific-password"`
-> App-specific passwords are generated at [appleid.apple.com](https://appleid.apple.com).
-
----
 
 ## Project structure
 
@@ -222,7 +194,5 @@ LatentGrain/
 Made with love in Montreal.
 
 Source available, non-commercial — © 2026 deijmaster. Personal use and forks welcome. Commercial use requires written permission. See [LICENSE](LICENSE).
-
----
 
 *Built with Swift + SwiftUI. No Electron was harmed in the making of this app.*
