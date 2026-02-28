@@ -12,7 +12,9 @@ I got tired of staring at daemons and launch agents on my Macs, and yes, I love 
 
 macOS apps can install small background programs that start automatically — even when the app itself is closed, and even after a reboot. These are called **launch agents**, **launch daemons**, and **login items**. They live in specific folders on your file system, and macOS registers them silently.
 
-Most of the time this is fine. But sometimes you want to know exactly what an installer just added to your system. That's what LatentGrain is for.
+Most of the time this is fine. But sometimes you want to know exactly what an installer just added to your system.
+
+That's what LatentGrain checks.
 
 ---
 
