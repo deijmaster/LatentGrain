@@ -1,5 +1,6 @@
 import SwiftUI
 import ServiceManagement
+import AppKit
 
 struct SettingsView: View {
 
@@ -23,45 +24,35 @@ struct SettingsView: View {
                         applyLaunchAtLogin(enabled: newValue)
                     }
                 ))
-                Toggle("Show status dot in menu bar", isOn: Binding(
+                Toggle("Show scan progress in icon", isOn: Binding(
                     get: { showMenuBarDot },
                     set: { newValue in withAnimation(.easeInOut(duration: 0.2)) { showMenuBarDot = newValue } }
                 ))
-                .help("The coloured dot indicates scan activity. Turn off for a minimal menu bar.")
+                .help("The photo area of the menu bar icon fills as you move through the scan lifecycle. Turn off for a clean icon.")
 
                 if showMenuBarDot {
-                    LabeledContent("Dot meaning") {
-                        VStack(alignment: .trailing, spacing: 6) {
+                    LabeledContent("Fill states") {
+                        VStack(alignment: .trailing, spacing: 7) {
+                            // Armed: bottom third filled
                             HStack(spacing: 6) {
-                                Circle()
-                                    .stroke(Color.green, lineWidth: 1.2)
-                                    .frame(width: 8, height: 8)
-                                Text("Idle")
+                                FillPreview(fraction: 1.0 / 3.0)
+                                Text("Before shot taken")
                                     .foregroundStyle(.secondary)
                             }
+                            // Scanning: ~60 % filled (breathing animates in the real icon)
                             HStack(spacing: 6) {
-                                Circle()
-                                    .stroke(Color.orange, lineWidth: 1.2)
-                                    .frame(width: 8, height: 8)
-                                Text("Scanning or unread findings")
+                                FillPreview(fraction: 0.60)
+                                Text("Scanning — fill breathes")
                                     .foregroundStyle(.secondary)
                             }
+                            // Unread: fully filled
                             HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color.green)
-                                    .frame(width: 8, height: 8)
-                                Text("Idle — popover open")
-                                    .foregroundStyle(.secondary)
-                            }
-                            HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color.orange)
-                                    .frame(width: 8, height: 8)
-                                Text("Findings present — popover open")
+                                FillPreview(fraction: 1.0)
+                                Text("Unread findings")
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .font(.system(size: 12))
+                        .font(.system(size: 12, design: .monospaced))
                     }
                     .transition(.opacity)
                 }
@@ -84,26 +75,45 @@ struct SettingsView: View {
                 Toggle("Show App Attribution", isOn: $showAttribution)
                 .help("Resolve which application owns each persistence item")
 
-                LabeledContent("Monitored Locations") {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        ForEach(PersistenceLocation.allCases, id: \.rawValue) { loc in
-                            HStack(spacing: 6) {
-                                Text(loc.displayName)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Persistence Sources")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.secondary)
 
-                                if loc.requiresElevation {
-                                    Image(systemName: "lock.fill")
-                                        .font(.caption2)
-                                        .foregroundStyle(.orange)
-                                        .help("Requires privileged helper")
-                                } else {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.caption2)
-                                        .foregroundStyle(.green)
+                    ForEach(PersistenceLocation.allCases, id: \.rawValue) { loc in
+                        HStack(alignment: .top, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 5) {
+                                    Text(loc.displayName)
+                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(.primary)
+                                    if loc.requiresElevation {
+                                        Image(systemName: "lock.fill")
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                            .help("Requires Full Disk Access or helper privileges")
+                                    }
                                 }
+                                Text(loc.resolvedPath)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
                             }
+
+                            Spacer(minLength: 0)
+
+                            Button {
+                                openPersistenceSource(loc)
+                            } label: {
+                                Image(systemName: "folder")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .focusable(false)
+                            .help("Open in Finder")
                         }
+                        .padding(.vertical, 2)
                     }
                 }
             }
@@ -178,5 +188,42 @@ struct SettingsView: View {
             // Surface the error but don't crash — settings will auto-revert next launch.
             print("[LatentGrain] Launch-at-login toggle failed: \(error)")
         }
+    }
+
+    private func openPersistenceSource(_ location: PersistenceLocation) {
+        let path = location.resolvedPath
+        if location.isSingleFile {
+            if FileManager.default.fileExists(atPath: path) {
+                NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+            } else {
+                let parent = (path as NSString).deletingLastPathComponent
+                NSWorkspace.shared.open(URL(fileURLWithPath: parent))
+            }
+        } else {
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        }
+    }
+}
+
+// MARK: - FillPreview
+
+/// Small polaroid-shaped preview showing a fill level — mirrors the real menu bar indicator.
+private struct FillPreview: View {
+    let fraction: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            // Faint background representing the empty photo area
+            Rectangle()
+                .fill(Color.primary.opacity(0.06))
+                .frame(width: 9, height: 9)
+            // Orange fill rising from the bottom
+            Rectangle()
+                .fill(Color.orange)
+                .frame(width: 9, height: 9 * fraction)
+        }
+        .frame(width: 9, height: 9)
+        .overlay(Rectangle().stroke(Color.primary.opacity(0.25), lineWidth: 0.5))
+        .clipped()
     }
 }

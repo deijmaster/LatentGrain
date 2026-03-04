@@ -2,14 +2,14 @@ name: LatentGrain
 options:
   bundleIdPrefix: com.latentgrain
   deploymentTarget:
-    macOS: "13.0"
-  xcodeVersion: "15.0"
+    macOS: "14.0"
+  xcodeVersion: "17.0"
   createIntermediateGroups: true
 
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
     ENABLE_HARDENED_RUNTIME: YES
     CODE_SIGN_STYLE: Automatic
 
@@ -19,7 +19,7 @@ targets:
   LatentGrain:
     type: application
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: "14.0"
 
     sources:
       - path: LatentGrain
@@ -51,7 +51,7 @@ targets:
   LatentGrainHelper:
     type: xpc-service
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: "14.0"
 
     sources:
       - path: LatentGrainHelper
@@ -66,7 +66,7 @@ targets:
   LatentGrainTests:
     type: bundle.unit-test
     platform: macOS
-    deploymentTarget: "13.0"
+    deploymentTarget: "14.0"
 
     sources:
       - path: Tests
@@ -80,3 +80,15 @@ targets:
 
     dependencies:
       - target: LatentGrain
+
+schemes:
+  LatentGrain:
+    build:
+      targets:
+        LatentGrain: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - LatentGrainTests

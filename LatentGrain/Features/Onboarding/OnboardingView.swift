@@ -62,7 +62,7 @@ struct OnboardingView: View {
         // Auto-advance to the Ready step the moment FDA is granted — so when the app
         // un-hides after the user returns from System Settings, they see "You're set up!"
         // rather than landing back on the FDA step and having to tap Continue manually.
-        .onChange(of: isFDAGranted) { granted in
+        .onChange(of: isFDAGranted) { _, granted in
             if granted && step == 3 {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) { step = 4 }
             }

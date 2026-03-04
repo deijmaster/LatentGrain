@@ -252,11 +252,14 @@ struct ItemRow: View {
     var showLocationBadge: Bool = true
 
     @AppStorage("showAttribution") private var showAttribution = true
+
+    @State private var hoverPos: CGPoint = .zero
     @State private var isHovered = false
+    @State private var cardSize: CGSize = CGSize(width: 400, height: 80)
 
     var body: some View {
         HStack(spacing: 0) {
-            // Accent bar
+            // Accent bar — spans full card height
             if let accent {
                 Rectangle()
                     .fill(accent)
@@ -264,9 +267,10 @@ struct ItemRow: View {
                     .clipShape(UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8))
             }
 
-            HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                // ── Content ────────────────────────────────────────────────
                 VStack(alignment: .leading, spacing: 6) {
-                    // Badge row — location + behavior
+                    // Badge row — location + behavior flags
                     if showLocationBadge || item.runAtLoad == true || item.keepAlive == true {
                         HStack(spacing: 5) {
                             if showLocationBadge {
@@ -282,10 +286,11 @@ struct ItemRow: View {
                         }
                     }
 
+                    // Filename — allowed to wrap so the full name is always visible
                     Text(item.filename)
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(.primary)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if showAttribution, let attribution = item.attribution {
                         HStack(spacing: 4) {
@@ -307,28 +312,59 @@ struct ItemRow: View {
                             .truncationMode(.middle)
                     }
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(accent != nil
+                    ? Color(nsColor: .controlBackgroundColor).opacity(0.6)
+                    : Color(nsColor: .controlBackgroundColor))
 
-                Spacer()
-
-                Button("Open") { revealInFinder() }
-                    .font(.system(size: 12, weight: .medium))
-                    .buttonStyle(.plain)
-                    .focusable(false)
-                    .foregroundStyle(isHovered ? Color.accentColor : .secondary)
-                    .onHover { isHovered = $0 }
+                // ── Action bar ─────────────────────────────────────────────
+                HStack(spacing: 8) {
+                    ActionButton(label: "open", icon: "folder") { revealInFinder() }
+                    // Future actions (quarantine, etc.) will be added here
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity)
+                .background(Color.black.opacity(0.28))
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(accent?.opacity(0.35) ?? Color.white.opacity(0.1))
+                        .frame(height: 0.5)
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
-            .background(accent != nil
-                ? Color(nsColor: .controlBackgroundColor).opacity(0.6)
-                : Color(nsColor: .controlBackgroundColor))
         }
         .background(accent?.opacity(0.08) ?? Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background(GeometryReader { geo in Color.clear.onAppear { cardSize = geo.size } })
+        .onContinuousHover(coordinateSpace: .local) { phase in
+            switch phase {
+            case .active(let loc):
+                hoverPos = loc
+                if !isHovered { withAnimation(.easeInOut(duration: 0.15)) { isHovered = true } }
+            case .ended:
+                withAnimation(.easeOut(duration: 0.3)) { isHovered = false }
+            }
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(accent?.opacity(0.2) ?? .clear, lineWidth: 1)
+                .strokeBorder(shimmerBorder, lineWidth: 1)
+        )
+    }
+
+    private var shimmerBorder: LinearGradient {
+        let base = accent ?? .white
+        guard isHovered, cardSize.width > 0 else {
+            return LinearGradient(colors: [base.opacity(0.18)], startPoint: .top, endPoint: .bottom)
+        }
+        let nx = max(0, min(1, hoverPos.x / cardSize.width))
+        let ny = max(0, min(1, hoverPos.y / cardSize.height))
+        return LinearGradient(
+            colors: [base.opacity(0.55), base.opacity(0.06)],
+            startPoint: UnitPoint(x: nx, y: ny),
+            endPoint: UnitPoint(x: 1 - nx, y: 1 - ny)
         )
     }
 
@@ -380,6 +416,38 @@ struct ItemRow: View {
         } else {
             NSWorkspace.shared.open(URL(fileURLWithPath: item.location.resolvedPath))
         }
+    }
+}
+
+// MARK: - ActionButton
+
+/// A small labelled icon button used in the item action bar.
+/// Manages its own hover state so multiple buttons can coexist independently.
+private struct ActionButton: View {
+    let label: String
+    let icon: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                Text(label)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+            }
+            .foregroundStyle(isHovered ? Color.accentColor : .secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isHovered ? Color.accentColor.opacity(0.12) : Color.clear)
+            .clipShape(Capsule())
+            .animation(.easeInOut(duration: 0.12), value: isHovered)
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { isHovered = $0 }
     }
 }
 

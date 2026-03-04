@@ -24,9 +24,9 @@
     <key>LSUIElement</key>
     <true/>
 
-    <!-- macOS 13+ minimum -->
+    <!-- macOS 14+ minimum -->
     <key>LSMinimumSystemVersion</key>
-    <string>13.0</string>
+    <string>14.0</string>
 
     <!-- Usage strings shown in System Settings → Privacy -->
     <key>NSDesktopFolderUsageDescription</key>

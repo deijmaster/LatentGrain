@@ -31,7 +31,7 @@ struct ScanView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { viewModel.recheckFDA() }
-        .onChange(of: viewModel.isFDAGranted) { granted in
+        .onChange(of: viewModel.isFDAGranted) { _, granted in
             if granted { fdaBannerDismissed = false }
         }
     }

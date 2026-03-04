@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var revealCancellable: AnyCancellable?
     private var iconObservers: Set<AnyCancellable> = []
     private var appearanceObserver: NSKeyValueObservation?
+    private var displayLink: CADisplayLink?
+    private var animationAngle: CGFloat = 0
     private var watchService: WatchService?
     private var watchObserver: Any?
     private var updateTimer: Timer?
@@ -175,7 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pop = NSPopover()
         pop.contentViewController = controller
         // Open at full height if results are already revealed (e.g. notification tap or pending diff)
-        pop.contentSize = NSSize(width: 380, height: scanViewModel.isDiffRevealed ? 700 : 440)
+        pop.contentSize = NSSize(width: 440, height: scanViewModel.isDiffRevealed ? 700 : 440)
         pop.behavior = .transient
         pop.animates = true
         pop.appearance = NSAppearance(named: .darkAqua)
@@ -190,7 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         revealCancellable = scanViewModel.$isDiffRevealed.sink { [weak pop] revealed in
             Task { @MainActor [weak pop] in
                 guard let pop, pop.isShown else { return }
-                pop.contentSize = NSSize(width: 380, height: revealed ? 700 : 440)
+                pop.contentSize = NSSize(width: 440, height: revealed ? 700 : 440)
             }
         }
 
@@ -357,9 +359,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         win.titlebarAppearsTransparent = true
         win.titleVisibility = .hidden
         win.isMovableByWindowBackground = true
-        win.setContentSize(NSSize(width: 440, height: 640))
-        win.minSize = NSSize(width: 400, height: 400)
-        win.maxSize = NSSize(width: 520, height: 900)
+        win.setContentSize(NSSize(width: 1040, height: 700))
+        win.minSize = NSSize(width: 900, height: 520)
+        win.maxSize = NSSize(width: 1600, height: 1000)
         win.appearance = NSAppearance(named: .darkAqua)
         win.isReleasedWhenClosed = false
         win.center()
@@ -423,6 +425,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Icon state
 
+    /// Four distinct visual states — each has its own shape vocabulary, not just a colour swap.
+    private enum LifecycleState: Equatable {
+        case idle       // No indicator — silence communicates "all clear"
+        case armed      // Before snapshot taken, waiting for "after" — static open arc
+        case scanning   // Active scan in progress — rotating arc driven by display link
+        case unread     // Diff exists and has not been revealed — solid filled dot
+    }
+
+    private var lifecycleState: LifecycleState {
+        if scanViewModel.isScanning                                          { return .scanning }
+        if scanViewModel.hasUnreadDiff                                       { return .unread   }
+        if scanViewModel.beforeSnapshot != nil, scanViewModel.currentDiff == nil { return .armed }
+        return .idle
+    }
+
     private func setupIconObservers() {
         scanViewModel.$isScanning
             .combineLatest(scanViewModel.$beforeSnapshot, scanViewModel.$currentDiff)
@@ -431,76 +448,107 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.updateStatusIcon() }
             .store(in: &iconObservers)
 
-        // Redraw when the "Show status dot" toggle changes in Settings.
-        // Wrapped in Task { @MainActor } — same pattern as watchObserver — so the icon
-        // update is scheduled asynchronously and never runs inside a CA commit transaction.
         NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in Task { @MainActor [weak self] in self?.updateStatusIcon() } }
             .store(in: &iconObservers)
     }
 
-    private func updateStatusIcon() {
-        guard let button = statusItem?.button else { return }
+    // MARK: Display link (only active while scanning)
 
-        let isActive   = scanViewModel.isScanning
-                      || (scanViewModel.beforeSnapshot != nil && scanViewModel.currentDiff == nil)
-                      || scanViewModel.hasUnreadDiff
-        let dotColor   = isActive ? NSColor.systemOrange : NSColor.systemGreen
-        let popoverOpen = popover?.isShown ?? false
-
-        button.image = makeMenuBarImage(dotColor: dotColor, filled: popoverOpen)
+    private func startDisplayLink() {
+        guard displayLink == nil else { return }
+        let link = NSScreen.main?.displayLink(target: self, selector: #selector(displayLinkTick(_:)))
+        // 24-30 fps is plenty for an 18 pt icon — saves battery vs ProMotion.
+        link?.preferredFrameRateRange = CAFrameRateRange(minimum: 24, maximum: 30, preferred: 30)
+        link?.add(to: .main, forMode: .common)
+        displayLink = link
     }
 
-    /// Renders the polaroid frame + status dot into a single 18×18pt image.
-    /// Dot coordinates are in image space — no button-offset guesswork.
-    private func makeMenuBarImage(dotColor: NSColor, filled: Bool) -> NSImage {
-        let dim: CGFloat = 18
-        let size = NSSize(width: dim, height: dim)
-        return NSImage(size: size, flipped: false) { _ in
+    private func stopDisplayLink() {
+        displayLink?.invalidate()
+        displayLink = nil
+    }
+
+    @objc private func displayLinkTick(_ link: CADisplayLink) {
+        // Drive fill breathing from absolute time — no drift accumulation.
+        // 0.35 cycles/sec ≈ 2.9 s per breath: calm, not frantic.
+        animationAngle = CGFloat(link.targetTimestamp) * 2 * .pi * 0.35
+        statusItem?.button?.image = makeMenuBarImage(state: .scanning)
+    }
+
+    // MARK: Icon update
+
+    private func updateStatusIcon() {
+        let state = lifecycleState
+
+        if state == .scanning {
+            startDisplayLink()
+            return  // display link drives redraws for this state
+        }
+
+        stopDisplayLink()
+        guard let button = statusItem?.button else { return }
+        button.image = makeMenuBarImage(state: state)
+    }
+
+    /// Renders the polaroid icon with a rising fill inside the photo area.
+    /// Drawing order matters: fill first (under the transparent photo area),
+    /// then the frame mask on top — the photo area is transparent in the icon
+    /// so the frame never paints over the fill.
+    ///
+    /// Photo area geometry in 18×18 pt NSImage space (y-up, origin bottom-left):
+    ///   x: 3.5 → 14.5  (width 11 pt)
+    ///   y: 5.0 → 16.0  (height 11 pt — 4 pt bottom margin = polaroid white strip)
+    private func makeMenuBarImage(state: LifecycleState) -> NSImage {
+        let angle         = animationAngle
+        let showIndicator = UserDefaults.standard.object(forKey: "showMenuBarDot") as? Bool != false
+        let dim: CGFloat  = 18
+
+        return NSImage(size: NSSize(width: dim, height: dim), flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext,
                   let base = NSImage(named: "MenuBarIcon"),
                   let mask = base.cgImage(forProposedRect: nil, context: nil, hints: nil)
             else { return false }
 
-            // Tint the polaroid frame to match the menu bar appearance
             let isDark = NSApp.effectiveAppearance
                 .bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             let frameColor = isDark ? NSColor.white : NSColor.black
 
-            // Clip to the icon's alpha channel, then flood-fill with the tint colour
+            // Compute what fraction of the photo area to fill
+            let fillFraction: CGFloat
+            switch (state, showIndicator) {
+            case (_, false), (.idle, _):
+                fillFraction = 0
+            case (.armed, _):
+                // Bottom third filled — "baseline snapshot loaded, waiting for after"
+                fillFraction = 1.0 / 3.0
+            case (.scanning, _):
+                // Breathe between 30 % and 90 % — honest "working" signal, no false progress
+                fillFraction = 0.30 + 0.60 * (0.5 + 0.5 * sin(angle))
+            case (.unread, _):
+                // Fully filled — "something is ready to develop"
+                fillFraction = 1.0
+            }
+
+            // 1. Fill rises from the bottom of the photo area upward
+            if fillFraction > 0 {
+                let fillRect = CGRect(x: 3.5,
+                                     y: 5.0,
+                                     width:  11.0,
+                                     height: 11.0 * fillFraction)
+                ctx.setFillColor(NSColor.systemOrange.cgColor)
+                ctx.fill([fillRect])
+            }
+
+            // 2. Draw polaroid frame on top, clipped to icon alpha channel.
+            //    The photo area is transparent in the mask so the frame flood-fill
+            //    never covers the orange fill drawn above.
             ctx.saveGState()
-            ctx.clip(to: CGRect(origin: .zero, size: CGSize(width: dim, height: dim)),
-                     mask: mask)
+            ctx.clip(to: CGRect(origin: .zero, size: CGSize(width: dim, height: dim)), mask: mask)
             ctx.setFillColor(frameColor.cgColor)
             ctx.fill([CGRect(origin: .zero, size: CGSize(width: dim, height: dim))])
             ctx.restoreGState()
-
-            // Photo area centre in 18pt image coords (x from left, y from bottom):
-            //   pad=1 → frame_h=16, frame_w=13 → fx=(18-13)/2=2.5, fy=1 (from top)
-            //   margin_lr=1, margin_top=1, margin_bot=4 → photo 11×11, top-left at (3.5, 2)
-            //   centre x = 3.5 + 5.5 = 9.0
-            //   centre y (NSImage, from bottom) = 18 − 2 − 5.5 = 10.5
-            // Respect the "Show status dot" preference — some users prefer a clean menu bar.
-            guard UserDefaults.standard.object(forKey: "showMenuBarDot") as? Bool != false else {
-                return true
-            }
-
-            let cx: CGFloat = 9.0
-            let cy: CGFloat = 10.5
-            let r:  CGFloat = 2.5   // dot radius
-
-            if filled {
-                ctx.setFillColor(dotColor.cgColor)
-                ctx.fillEllipse(in: CGRect(x: cx - r, y: cy - r,
-                                           width: r * 2, height: r * 2))
-            } else {
-                // Ring style when popover is closed
-                ctx.setStrokeColor(dotColor.cgColor)
-                ctx.setLineWidth(1.2)
-                ctx.strokeEllipse(in: CGRect(x: cx - r + 0.6, y: cy - r + 0.6,
-                                             width: (r - 0.6) * 2, height: (r - 0.6) * 2))
-            }
 
             return true
         }
