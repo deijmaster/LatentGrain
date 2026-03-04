@@ -8,6 +8,7 @@ final class StorageService: ObservableObject {
 
     @Published private(set) var snapshots:   [PersistenceSnapshot] = []
     @Published private(set) var diffRecords: [DiffRecord]          = []
+    @Published private(set) var persistenceActions: [PersistenceActionRecord] = []
 
     /// Non-nil when a watch-detected diff is waiting for the user to view.
     /// Cleared when the diff is revealed (Develop pressed) or manually dismissed.
@@ -16,8 +17,32 @@ final class StorageService: ObservableObject {
     private let storageURL:       URL
     private let diffRecordsURL:   URL
     private let pendingDiffURL:   URL
+    private let actionRecordsURL: URL
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+
+    struct PersistenceActionRecord: Codable, Identifiable {
+        enum ActionKind: String, Codable {
+            case disabled
+            case quarantined
+        }
+
+        enum ActionStatus: String, Codable {
+            case active
+            case restored
+        }
+
+        let id: UUID
+        let originalPath: String
+        var label: String
+        var domain: String
+        var userUID: Int
+        var quarantinePath: String?
+        let kind: ActionKind
+        var status: ActionStatus
+        let createdAt: Date
+        var updatedAt: Date
+    }
 
     // Thin Codable wrapper — avoids named-tuple Codable limitations
     struct PendingDiffPairRecord: Codable {
@@ -41,6 +66,7 @@ final class StorageService: ObservableObject {
         self.storageURL     = appDir.appendingPathComponent("snapshots.json")
         self.diffRecordsURL = appDir.appendingPathComponent("diff_records.json")
         self.pendingDiffURL = appDir.appendingPathComponent("pending_diff.json")
+        self.actionRecordsURL = appDir.appendingPathComponent("persistence_actions.json")
         load()
     }
 
@@ -119,6 +145,56 @@ final class StorageService: ObservableObject {
         return diffService.diff(before: before, after: after)
     }
 
+    // MARK: - Persistence action state
+
+    func upsertPersistenceAction(
+        originalPath: String,
+        label: String,
+        domain: String,
+        userUID: Int,
+        kind: PersistenceActionRecord.ActionKind,
+        quarantinePath: String?
+    ) {
+        if let idx = persistenceActions.firstIndex(where: {
+            $0.originalPath == originalPath && $0.kind == kind && $0.status == .active
+        }) {
+            persistenceActions[idx].label = label
+            persistenceActions[idx].domain = domain
+            persistenceActions[idx].userUID = userUID
+            persistenceActions[idx].quarantinePath = quarantinePath
+            persistenceActions[idx].updatedAt = Date()
+        } else {
+            persistenceActions.append(
+                PersistenceActionRecord(
+                    id: UUID(),
+                    originalPath: originalPath,
+                    label: label,
+                    domain: domain,
+                    userUID: userUID,
+                    quarantinePath: quarantinePath,
+                    kind: kind,
+                    status: .active,
+                    createdAt: Date(),
+                    updatedAt: Date()
+                )
+            )
+        }
+        persistActionRecords()
+    }
+
+    func markPersistenceActionRestored(id: UUID) {
+        guard let idx = persistenceActions.firstIndex(where: { $0.id == id }) else { return }
+        persistenceActions[idx].status = .restored
+        persistenceActions[idx].updatedAt = Date()
+        persistActionRecords()
+    }
+
+    func activePersistenceActions(of kind: PersistenceActionRecord.ActionKind) -> [PersistenceActionRecord] {
+        persistenceActions
+            .filter { $0.kind == kind && $0.status == .active }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
     // MARK: - Private — load
 
     private func load() {
@@ -133,6 +209,10 @@ final class StorageService: ObservableObject {
         if let data   = try? Data(contentsOf: pendingDiffURL),
            let loaded = try? decoder.decode(PendingDiffPairRecord.self, from: data) {
             pendingDiffPair = loaded
+        }
+        if let data   = try? Data(contentsOf: actionRecordsURL),
+           let loaded = try? decoder.decode([PersistenceActionRecord].self, from: data) {
+            persistenceActions = loaded
         }
     }
 
@@ -149,6 +229,10 @@ final class StorageService: ObservableObject {
     private func persistPendingDiff() {
         guard let pair = pendingDiffPair else { return }
         write(pair, to: pendingDiffURL)
+    }
+
+    private func persistActionRecords() {
+        write(persistenceActions, to: actionRecordsURL)
     }
 
     private func write<T: Encodable>(_ value: T, to url: URL) {

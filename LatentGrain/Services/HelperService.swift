@@ -30,7 +30,12 @@ class HelperService {
 
     // MARK: - Remote calls
 
+    private func ensureConnected() {
+        if connection == nil { connect() }
+    }
+
     func scanDaemons() async throws -> [String] {
+        ensureConnected()
         guard let conn = connection else {
             throw HelperError.notConnected
         }
@@ -49,6 +54,114 @@ class HelperService {
             }
         }
     }
+
+    func disableItem(path: String, label: String, domain: String, userUID: Int) async throws {
+        ensureConnected()
+        guard let conn = connection else {
+            throw HelperError.notConnected
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
+                continuation.resume(throwing: error)
+            } as? LatentGrainXPCProtocol
+
+            proxy?.disableItem(path, label: label, domain: domain, userUID: userUID) { _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    func quarantineItem(
+        path: String,
+        label: String,
+        domain: String,
+        userUID: Int,
+        quarantineRoot: String
+    ) async throws -> String? {
+        ensureConnected()
+        guard let conn = connection else {
+            throw HelperError.notConnected
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
+                continuation.resume(throwing: error)
+            } as? LatentGrainXPCProtocol
+
+            proxy?.quarantineItem(
+                path,
+                label: label,
+                domain: domain,
+                userUID: userUID,
+                quarantineRoot: quarantineRoot
+            ) { result, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: result?["quarantinePath"] as? String)
+                }
+            }
+        }
+    }
+
+    func enableItem(path: String, label: String, domain: String, userUID: Int) async throws {
+        ensureConnected()
+        guard let conn = connection else {
+            throw HelperError.notConnected
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
+                continuation.resume(throwing: error)
+            } as? LatentGrainXPCProtocol
+
+            proxy?.enableItem(path, label: label, domain: domain, userUID: userUID) { _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
+    func restoreQuarantinedItem(
+        originalPath: String,
+        quarantinedPath: String,
+        label: String,
+        domain: String,
+        userUID: Int
+    ) async throws {
+        ensureConnected()
+        guard let conn = connection else {
+            throw HelperError.notConnected
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
+                continuation.resume(throwing: error)
+            } as? LatentGrainXPCProtocol
+
+            proxy?.restoreQuarantinedItem(
+                originalPath: originalPath,
+                quarantinedPath: quarantinedPath,
+                label: label,
+                domain: domain,
+                userUID: userUID
+            ) { _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
 }
 
 // MARK: - HelperError
@@ -58,6 +171,7 @@ enum HelperError: LocalizedError {
     case accessDenied
     case invalidPath
     case scanFailed(String)
+    case actionFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -65,6 +179,7 @@ enum HelperError: LocalizedError {
         case .accessDenied:        return "Access denied to privileged location."
         case .invalidPath:         return "The requested path does not exist."
         case .scanFailed(let msg): return "Scan failed: \(msg)"
+        case .actionFailed(let msg): return "Action failed: \(msg)"
         }
     }
 }

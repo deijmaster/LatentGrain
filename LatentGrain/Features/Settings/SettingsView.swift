@@ -74,48 +74,6 @@ struct SettingsView: View {
 
                 Toggle("Show App Attribution", isOn: $showAttribution)
                 .help("Resolve which application owns each persistence item")
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Persistence Sources")
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.secondary)
-
-                    ForEach(PersistenceLocation.allCases, id: \.rawValue) { loc in
-                        HStack(alignment: .top, spacing: 8) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 5) {
-                                    Text(loc.displayName)
-                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(.primary)
-                                    if loc.requiresElevation {
-                                        Image(systemName: "lock.fill")
-                                            .font(.caption2)
-                                            .foregroundStyle(.orange)
-                                            .help("Requires Full Disk Access or helper privileges")
-                                    }
-                                }
-                                Text(loc.resolvedPath)
-                                    .font(.system(size: 10, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-
-                            Spacer(minLength: 0)
-
-                            Button {
-                                openPersistenceSource(loc)
-                            } label: {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 12, weight: .semibold))
-                            }
-                            .buttonStyle(.plain)
-                            .focusable(false)
-                            .help("Open in Finder")
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
             }
 
             // MARK: Privacy
@@ -190,19 +148,6 @@ struct SettingsView: View {
         }
     }
 
-    private func openPersistenceSource(_ location: PersistenceLocation) {
-        let path = location.resolvedPath
-        if location.isSingleFile {
-            if FileManager.default.fileExists(atPath: path) {
-                NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
-            } else {
-                let parent = (path as NSString).deletingLastPathComponent
-                NSWorkspace.shared.open(URL(fileURLWithPath: parent))
-            }
-        } else {
-            NSWorkspace.shared.open(URL(fileURLWithPath: path))
-        }
-    }
 }
 
 // MARK: - FillPreview

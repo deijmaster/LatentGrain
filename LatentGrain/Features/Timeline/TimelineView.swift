@@ -1,5 +1,7 @@
 import SwiftUI
 import AppKit
+import Darwin
+import UniformTypeIdentifiers
 
 // MARK: - TimelineView
 
@@ -13,6 +15,23 @@ struct TimelineView: View {
     @State private var selectedIDs: Set<UUID> = []
     @State private var dashboardTab: DashboardTab = .timeline
     @State private var selectedSource: PersistenceLocation = .userLaunchAgents
+    private let outerInset: CGFloat = 14
+    private let detailTopAlignOffset: CGFloat = 44
+    @State private var restoreNotice: RestoreNotice? = nil
+    @State private var restoringActionIDs: Set<UUID> = []
+    private let actionHelperService = HelperService()
+
+    private struct RestoreNotice: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
+    }
+
+    private struct BreadcrumbSegment: Identifiable {
+        let id = UUID()
+        let title: String
+        let action: (() -> Void)?
+    }
 
     private enum DashboardTab: String, CaseIterable, Identifiable {
         case timeline
@@ -25,7 +44,7 @@ struct TimelineView: View {
             switch self {
             case .timeline: return "Timeline"
             case .sources: return "Sources"
-            case .actions: return "Actions"
+            case .actions: return "Control Zone"
             }
         }
     }
@@ -58,6 +77,13 @@ struct TimelineView: View {
         }
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .alert(item: $restoreNotice) { notice in
+            Alert(
+                title: Text(notice.title),
+                message: Text(notice.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
         .onAppear {
             if selectedRecordID == nil { selectedRecordID = records.first?.id }
         }
@@ -190,7 +216,7 @@ struct TimelineView: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .orangeHoverShimmer(cornerRadius: 999, opacity: 0.045)
+        .orangeHoverShimmer(cornerRadius: 999, opacity: 0.11)
     }
 
     private func selectionMarker(isOn: Bool) -> some View {
@@ -241,7 +267,7 @@ struct TimelineView: View {
                 .clipShape(Capsule())
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, TimelineTheme.rightPaneHorizontalInset)
         .padding(.vertical, 8)
     }
 
@@ -301,27 +327,38 @@ struct TimelineView: View {
                                     }
                                 }
                             }
-                            .padding(.vertical, 12)
+                            .padding(.top, 12)
+                            .padding(.bottom, 84)
                         }
                         .windowEndFade()
                     }
-                    .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
+                    .frame(width: TimelineTheme.leftPaneWidth)
 
                     Group {
                         if let record = selectedRecord, !record.isEmpty {
                             VStack(spacing: 0) {
                                 detailContextHeader(for: record)
-                                DashboardDetailPane(record: record, storageService: storageService)
+                                DashboardDetailPane(
+                                    record: record,
+                                    storageService: storageService,
+                                    horizontalInset: TimelineTheme.rightPaneHorizontalInset,
+                                    topInset: TimelineTheme.rightPaneTopInset,
+                                    cardCornerRadius: TimelineTheme.rightPaneCardCorner
+                                )
                             }
                             .id(record.id)
                         } else {
                             dashboardOverviewPane
                         }
                     }
-                    .frame(minWidth: 560, maxWidth: .infinity)
+                    .frame(minWidth: TimelineTheme.rightPaneMinWidth, maxWidth: .infinity)
+                    .padding(.top, detailTopAlignOffset)
                 }
             }
         }
+        .padding(.horizontal, outerInset)
+        .padding(.top, 8)
+        .padding(.bottom, outerInset)
     }
 
     private var dashboardOverviewPane: some View {
@@ -332,6 +369,8 @@ struct TimelineView: View {
         let latestChecked = storageService.snapshots.last?.itemCount ?? 0
         let totalSnapshots = storageService.snapshots.count
         let monitoredSources = PersistenceLocation.allCases.count
+        let disabledCount = storageService.activePersistenceActions(of: .disabled).count
+        let quarantinedCount = storageService.activePersistenceActions(of: .quarantined).count
 
         return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -351,6 +390,8 @@ struct TimelineView: View {
                     overviewCard(title: "Tracked Changes", value: "\(totalChanges)", subtitle: "across timeline")
                     overviewCard(title: "Snapshots", value: "\(totalSnapshots)", subtitle: "stored frames")
                     overviewCard(title: "Monitored Sources", value: "\(monitoredSources)", subtitle: "persistence locations")
+                    overviewCard(title: "Disabled Items", value: "\(disabledCount)", subtitle: "launchctl disabled")
+                    overviewCard(title: "Quarantined Items", value: "\(quarantinedCount)", subtitle: "moved to quarantine")
                     overviewCard(
                         title: "Last Scan",
                         value: records.first?.timestamp.formatted(.dateTime.hour().minute()) ?? "—",
@@ -358,7 +399,10 @@ struct TimelineView: View {
                     )
                 }
             }
-            .padding(14)
+            .padding(.top, TimelineTheme.rightPaneTopInset)
+            .padding(.horizontal, TimelineTheme.rightPaneHorizontalInset)
+            .padding(.bottom, 84)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .windowEndFade()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -379,12 +423,8 @@ struct TimelineView: View {
         .frame(maxWidth: .infinity, minHeight: 86, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
-        .background(Color.white.opacity(0.03))
-        .overlay(
-            RoundedRectangle(cornerRadius: 9)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.6)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 9))
+        .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
+        .orangeHoverShimmer(cornerRadius: TimelineTheme.rightPaneCardCorner, opacity: 0.09)
     }
 
     private var sourcesPane: some View {
@@ -401,161 +441,395 @@ struct TimelineView: View {
                         .focusable(false)
                     }
                 }
-                .padding(12)
+                .padding(.top, 12)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 84)
             }
             .windowEndFade()
-            .frame(minWidth: 300, idealWidth: 340, maxWidth: 380)
+            .frame(width: TimelineTheme.leftPaneWidth)
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    Text(selectedSource.displayName)
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    Spacer()
-                    Button {
-                        openPersistenceSource(selectedSource)
-                    } label: {
-                        Image(systemName: "folder")
-                            .font(.system(size: 12, weight: .semibold))
-                            .padding(6)
-                            .background(Color.white.opacity(0.04))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
-                    }
-                    .buttonStyle(.plain)
-                    .focusable(false)
-                    .help("Open source in Finder")
-                }
-
-                sourceInfoRow("path", value: selectedSource.resolvedPath)
-                sourceInfoRow("watch path", value: selectedSource.watchPath)
-                sourceInfoRow("type", value: selectedSource.isSingleFile ? "single file source" : "directory source")
-                sourceInfoRow("access", value: selectedSource.requiresElevation ? "restricted / elevated" : "readable")
-
-                let relatedEvents = records.filter { $0.affectedLocations.contains(selectedSource.rawValue) }
-                HStack(spacing: 6) {
-                    headerPill("\(relatedEvents.count) related events")
-                    headerPill("\(records.count) total timeline")
-                }
-
-                if relatedEvents.isEmpty {
-                    Text("No timeline events mapped to this source yet.")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Recent Events")
-                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 8) {
+                        Text(selectedSource.displayName)
+                            .font(.system(size: 16, weight: .semibold))
+                        Spacer()
+                        Text(selectedSourceReferenceText)
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .lineLimit(2)
+                            .frame(maxWidth: 320, alignment: .trailing)
+                        Button {
+                            openPersistenceSource(selectedSource)
+                        } label: {
+                            Image(systemName: "folder")
+                                .font(.system(size: 13, weight: .semibold))
+                                .padding(8)
+                                .background(Color.white.opacity(0.04))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 9)
+                                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 9))
+                        }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+                        .orangeHoverShimmer(cornerRadius: 9, opacity: 0.11)
+                        .help("Open source in Finder")
+                    }
 
-                        ForEach(Array(relatedEvents.prefix(6)), id: \.id) { record in
-                            Button {
-                                selectedRecordID = record.id
-                                dashboardTab = .timeline
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Text(record.timestamp.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute()))
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                    Text("\(record.addedCount)+ \(record.removedCount)- \(record.modifiedCount)~")
-                                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    Image(systemName: "arrow.right")
-                                        .font(.system(size: 9, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .background(Color.white.opacity(0.03))
-                                .clipShape(RoundedRectangle(cornerRadius: 7))
+                    VStack(alignment: .leading, spacing: 10) {
+                        sourceInfoRow("path", value: selectedSource.resolvedPath)
+                        sourceInfoRow("watch path", value: selectedSource.watchPath)
+                        sourceInfoRow("type", value: selectedSource.isSingleFile ? "single file source" : "directory source")
+                        sourceInfoRow("access", value: selectedSource.requiresElevation ? "restricted / elevated" : "readable")
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text("Current Items")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            if let latestSnapshot = storageService.snapshots.last {
+                                Text(latestSnapshot.timestamp.formatted(.dateTime.hour().minute()))
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
                             }
-                            .buttonStyle(.plain)
-                            .focusable(false)
+                            Spacer()
+                            Text("\(currentSourceItems.count)")
+                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if currentSourceItems.isEmpty {
+                            Text("No items currently captured for this source in the latest snapshot.")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
+                        } else {
+                            ForEach(currentSourceItems.prefix(80), id: \.id) { item in
+                                HStack(spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(item.filename)
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Text(item.fullPath)
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                    }
+                                    Spacer(minLength: 0)
+                                    SourceFolderButton(filePath: item.fullPath)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
+                                .orangeHoverShimmer(cornerRadius: 10, opacity: 0.11)
+                            }
+                        }
+                    }
+
+                    let relatedEvents = records.filter { $0.affectedLocations.contains(selectedSource.rawValue) }
+
+                    if relatedEvents.isEmpty {
+                        Text("No timeline events mapped to this source yet.")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Recent Events")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+
+                            ForEach(Array(relatedEvents.prefix(6)), id: \.id) { record in
+                                let isSelected = selectedRecordID == record.id
+                                Button {
+                                    selectedRecordID = record.id
+                                    dashboardTab = .timeline
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Text(record.timestamp.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute()))
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                        Text("\(record.addedCount)+ \(record.removedCount)- \(record.modifiedCount)~")
+                                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                            .foregroundStyle(.primary)
+                                        Spacer()
+                                        Image(systemName: "arrow.right")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .rightPaneCardSurface(selected: isSelected, cornerRadius: TimelineTheme.rightPaneCardCorner)
+                                }
+                                .buttonStyle(.plain)
+                                .focusable(false)
+                                .orangeHoverShimmer(cornerRadius: TimelineTheme.rightPaneCardCorner, opacity: 0.11)
+                            }
                         }
                     }
                 }
-
-                Spacer()
+                .padding(.horizontal, TimelineTheme.rightPaneHorizontalInset)
+                .padding(.top, TimelineTheme.rightPaneTopInset)
+                .padding(.bottom, 84)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(12)
+            .windowEndFade()
+            .frame(minWidth: TimelineTheme.rightPaneMinWidth, maxWidth: .infinity, alignment: .topLeading)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .padding(.horizontal, outerInset)
+        .padding(.top, 8)
+        .padding(.bottom, outerInset)
     }
 
     private var actionsPane: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Upcoming Actions")
-                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-            actionRoadmapRow("Rule presets for high-risk persistence locations")
-            actionRoadmapRow("Bulk triage + export from selected timeline records")
-            actionRoadmapRow("Investigation bundles with source path + hash context")
-            Spacer()
+        let disabled = storageService.activePersistenceActions(of: .disabled)
+        let quarantined = storageService.activePersistenceActions(of: .quarantined)
+
+        return HStack(spacing: 12) {
+            actionColumnPane(
+                title: "Quarantined",
+                count: quarantined.count,
+                countSubtitle: "ready to restore",
+                recordsTitle: "Quarantined Items",
+                records: quarantined,
+                emptyText: "No quarantined items.",
+                actionTitle: "Restore"
+            )
+            actionColumnPane(
+                title: "Disabled",
+                count: disabled.count,
+                countSubtitle: "ready to re-enable",
+                recordsTitle: "Disabled Items",
+                records: disabled,
+                emptyText: "No disabled items.",
+                actionTitle: "Re-enable"
+            )
         }
-        .padding(16)
+        .padding(.horizontal, outerInset)
+        .padding(.top, 8)
+        .padding(.bottom, outerInset)
+    }
+
+    private func actionColumnPane(
+        title: String,
+        count: Int,
+        countSubtitle: String,
+        recordsTitle: String,
+        records: [StorageService.PersistenceActionRecord],
+        emptyText: String,
+        actionTitle: String
+    ) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                overviewCard(title: title, value: "\(count)", subtitle: countSubtitle)
+                managedActionSection(
+                    title: recordsTitle,
+                    records: records,
+                    emptyText: emptyText,
+                    actionTitle: actionTitle
+                )
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 84)
+        }
+        .windowEndFade()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func sourceCard(for location: PersistenceLocation, isSelected: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text(location.displayName)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 if location.requiresElevation {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
             Text(location.resolvedPath)
-                .font(.system(size: 10, design: .monospaced))
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(isSelected ? Color.accentColor.opacity(0.16) : Color.white.opacity(0.03))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(isSelected ? Color.accentColor.opacity(0.28) : Color.white.opacity(0.10), lineWidth: 0.6)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 10)
+        .leftPaneCardSurface(selected: isSelected, hovered: false, cornerRadius: 10)
+        .opacity(isSelected ? 1.0 : 0.92)
+        .saturation(isSelected ? 1.0 : 0.90)
+        .orangeHoverShimmer(cornerRadius: 10, opacity: 0.14)
     }
 
     private func sourceInfoRow(_ key: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
             Text(key)
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.secondary)
-                .frame(width: 78, alignment: .leading)
+                .frame(width: 92, alignment: .leading)
             Text(value)
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
     }
 
-    private func actionRoadmapRow(_ text: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "circle")
-                .font(.system(size: 8, weight: .medium))
-                .foregroundStyle(.secondary)
-            Text(text)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
-            Spacer()
+    private var currentSourceItems: [PersistenceItem] {
+        guard let snapshot = storageService.snapshots.last else { return [] }
+        return snapshot.items
+            .filter { $0.location == selectedSource }
+            .sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending }
+    }
+
+    private var selectedSourceReferenceText: String {
+        switch selectedSource {
+        case .userLaunchAgents:
+            return "Per-user login agents loaded for the current user session."
+        case .systemLaunchAgents:
+            return "System-wide agents that run in user login contexts."
+        case .systemLaunchDaemons:
+            return "System daemons that run in the background at the OS level."
+        case .systemExtensions:
+            return "Installed system extensions that add low-level runtime components."
+        case .backgroundTaskMgmt:
+            return "Background task policy database used by macOS task management."
+        case .configurationProfiles:
+            return "Managed profiles that enforce security and system configuration."
+        case .userTCC:
+            return "Per-user privacy permissions (TCC) for app capability access."
+        case .systemTCC:
+            return "System-level privacy permissions (TCC) enforced across the host."
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.white.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func managedActionSection(
+        title: String,
+        records: [StorageService.PersistenceActionRecord],
+        emptyText: String,
+        actionTitle: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            if records.isEmpty {
+                Text(emptyText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.02))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            } else {
+                ForEach(records, id: \.id) { record in
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(URL(fileURLWithPath: record.originalPath).lastPathComponent)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.primary)
+                            Text(record.label)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Text(record.originalPath)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        Spacer(minLength: 0)
+                        Button(actionTitle) {
+                            Task { await restoreActionRecord(record) }
+                        }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(Color.orange.opacity(0.10))
+                        .overlay(
+                            Capsule().strokeBorder(Color.orange.opacity(0.24), lineWidth: 0.6)
+                        )
+                        .clipShape(Capsule())
+                        .orangeHoverShimmer(cornerRadius: 999, opacity: 0.11)
+                        .disabled(restoringActionIDs.contains(record.id))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.03))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.6)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .orangeHoverShimmer(cornerRadius: 8, opacity: 0.09)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func restoreActionRecord(_ record: StorageService.PersistenceActionRecord) async {
+        guard !restoringActionIDs.contains(record.id) else { return }
+        restoringActionIDs.insert(record.id)
+        defer { restoringActionIDs.remove(record.id) }
+
+        do {
+            switch record.kind {
+            case .disabled:
+                try await actionHelperService.enableItem(
+                    path: record.originalPath,
+                    label: record.label,
+                    domain: record.domain,
+                    userUID: record.userUID
+                )
+            case .quarantined:
+                guard let quarantinedPath = record.quarantinePath else {
+                    throw NSError(domain: "com.latentgrain.app", code: 1, userInfo: [
+                        NSLocalizedDescriptionKey: "Missing quarantine path for restore action."
+                    ])
+                }
+                try await actionHelperService.restoreQuarantinedItem(
+                    originalPath: record.originalPath,
+                    quarantinedPath: quarantinedPath,
+                    label: record.label,
+                    domain: record.domain,
+                    userUID: record.userUID
+                )
+            }
+
+            storageService.markPersistenceActionRestored(id: record.id)
+            restoreNotice = RestoreNotice(
+                title: "Restored",
+                message: "\(URL(fileURLWithPath: record.originalPath).lastPathComponent) was restored successfully."
+            )
+        } catch {
+            restoreNotice = RestoreNotice(
+                title: "Restore failed",
+                message: error.localizedDescription
+            )
+        }
     }
 
     private func openPersistenceSource(_ location: PersistenceLocation) {
@@ -581,30 +855,27 @@ struct TimelineView: View {
     // MARK: - Header
 
     private var header: some View {
-        let count = records.count
-        let autoCount = records.filter { $0.source == "Auto" }.count
-        let scanCount = max(0, count - autoCount)
-        let subtitle: String
+        let pathTrail: [BreadcrumbSegment]
         switch dashboardTab {
-        case .timeline: subtitle = "Timeline + Evidence"
-        case .sources: subtitle = "Persistence Sources + Navigation"
-        case .actions: subtitle = "Roadmap + New Interactions"
+        case .timeline:
+            pathTrail = [
+                BreadcrumbSegment(title: "Timeline", action: nil)
+            ]
+        case .sources:
+            pathTrail = [
+                BreadcrumbSegment(title: "Sources", action: nil)
+            ]
+        case .actions:
+            pathTrail = [
+                BreadcrumbSegment(title: "Control Zone", action: nil)
+            ]
         }
+        let trail = [BreadcrumbSegment(title: "Persistence Timeline", action: {
+            dashboardTab = .timeline
+        })] + pathTrail
 
         return HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Persistence Dashboard")
-                    .font(.system(size: 14, weight: .bold))
-                Text(subtitle)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 6) {
-                headerPill("\(count) events")
-                headerPill("\(autoCount) auto")
-                headerPill("\(scanCount) scan")
-            }
+            breadcrumbTrail(trail)
 
             Spacer()
             dashboardTabs
@@ -612,16 +883,6 @@ struct TimelineView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                )
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-        )
         .alert("Clear Timeline", isPresented: $showClearAllConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("Clear All", role: .destructive) {
@@ -632,6 +893,58 @@ struct TimelineView: View {
             }
         } message: {
             Text("This will remove all timeline events. This cannot be undone.")
+        }
+    }
+
+    private func breadcrumbTrail(_ trail: [BreadcrumbSegment]) -> some View {
+        HStack(spacing: 5) {
+            ForEach(Array(trail.enumerated()), id: \.offset) { index, segment in
+                if index > 0 {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                Group {
+                    if let action = segment.action {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.18)) {
+                                action()
+                            }
+                        } label: {
+                            Text(segment.title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(index == trail.count - 1 ? .primary : .secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(index == trail.count - 1 ? Color.white.opacity(0.06) : Color.white.opacity(0.025))
+                                .overlay(
+                                    Capsule().strokeBorder(
+                                        index == trail.count - 1 ? Color.white.opacity(0.13) : Color.white.opacity(0.08),
+                                        lineWidth: 0.5
+                                    )
+                                )
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .focusable(false)
+                    } else {
+                        Text(segment.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(index == trail.count - 1 ? .primary : .secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(index == trail.count - 1 ? Color.white.opacity(0.06) : Color.white.opacity(0.025))
+                            .overlay(
+                                Capsule().strokeBorder(
+                                    index == trail.count - 1 ? Color.white.opacity(0.13) : Color.white.opacity(0.08),
+                                    lineWidth: 0.5
+                                )
+                            )
+                            .clipShape(Capsule())
+                    }
+                }
+                .orangeHoverShimmer(cornerRadius: 999, opacity: 0.10)
+            }
         }
     }
 
@@ -651,30 +964,19 @@ struct TimelineView: View {
                         .background(
                             dashboardTab == tab ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.03)
                         )
-                        .overlay(
-                            Capsule().strokeBorder(
-                                dashboardTab == tab ? Color.accentColor.opacity(0.30) : Color.white.opacity(0.10),
-                                lineWidth: 0.6
-                            )
+                    .overlay(
+                        Capsule().strokeBorder(
+                            dashboardTab == tab ? Color.accentColor.opacity(0.30) : Color.white.opacity(0.10),
+                            lineWidth: 0.6
                         )
-                        .clipShape(Capsule())
+                    )
+                    .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
-                .orangeHoverShimmer(cornerRadius: 999, opacity: 0.045)
+                .orangeHoverShimmer(cornerRadius: 999, opacity: 0.11)
             }
         }
-    }
-
-    private func headerPill(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 4)
-            .background(Color.white.opacity(0.05))
-            .clipShape(Capsule())
-            .orangeHoverShimmer(cornerRadius: 999, opacity: 0.04)
     }
 
     // MARK: - Empty state
@@ -726,7 +1028,6 @@ struct TimelineRowView: View {
             // Card
             TimelineCardView(
                 record: record,
-                accentColor: accentColor,
                 isSelected: isSelected
             )
             .contentShape(Rectangle())
@@ -765,7 +1066,6 @@ struct TimelineRowView: View {
 struct TimelineCardView: View {
 
     let record: DiffRecord
-    let accentColor: Color
     let isSelected: Bool
 
     @State private var isHovered = false
@@ -800,15 +1100,12 @@ struct TimelineCardView: View {
                 // Top row — cinematic badge + relative time
                 HStack(spacing: 6) {
                     filmBadge
-                    Spacer()
-                    if !record.isEmpty {
-                        detailsIndicator
-                    }
-                    Text(record.timestamp.formatted(.relative(presentation: .named)))
-                        .font(.system(size: 11, weight: .medium))
+                    Text(record.timestamp.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.colon)))
+                        .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                        .help(record.timestamp.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.colon)))
+                        .minimumScaleFactor(0.85)
+                    Spacer()
                 }
                 .padding(.bottom, 8)
 
@@ -819,42 +1116,26 @@ struct TimelineCardView: View {
                     .lineLimit(1)
                     .padding(.bottom, 8)
 
-                // Bottom row — context (where + exact time)
+                // Bottom row — context spacing
                 HStack(spacing: 6) {
-                    if !record.resolvedLocations.isEmpty {
-                        ForEach(record.resolvedLocations, id: \.rawValue) { location in
-                            locationPill(location)
-                        }
-                    }
-
                     Spacer(minLength: 0)
-
-                    Text(record.timestamp.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.colon)))
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
                 }
+
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    detailsIndicator
+                }
+                .padding(.top, 7)
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 10)
             .transaction { tx in tx.animation = nil }
         }
-        .cardBackground(accent: isSelected ? accentColor : nil, hovered: isHovered)
-        .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(isSelected ? 0.03 : 0.06))
-        }
+        .leftPaneCardSurface(selected: isSelected, hovered: isHovered, cornerRadius: 10)
         .hoverSheen(active: isHovered, opacity: 0.05, cornerRadius: 10)
         .scaleEffect(isHovered ? 1.004 : 1.0)
         .opacity(restingEmphasis)
         .saturation(isSelected ? 1.0 : 0.88)
-        .overlay {
-            if isSelected {
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.orange.opacity(0.46), lineWidth: 1.0)
-            }
-        }
         .overlay(alignment: .trailing) {
             if isSelected && !record.isEmpty {
                 HStack(spacing: 4) {
@@ -874,21 +1155,48 @@ struct TimelineCardView: View {
     }
 
     private var detailsIndicator: some View {
-        HStack(spacing: 4) {
-            Text(isSelected ? "DETAILS OPEN" : "VIEW DETAILS")
+        return HStack(spacing: 4) {
+            Text(detailsIndicatorLabel)
                 .font(.system(size: 9, weight: .semibold))
-            Image(systemName: "arrow.right")
-                .font(.system(size: 8, weight: .semibold))
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+            if !record.isEmpty {
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 8, weight: .semibold))
+            }
         }
-        .foregroundStyle(isSelected ? .orange : Color.orange.opacity(0.92))
-        .padding(.horizontal, 6)
+        .foregroundStyle(detailsIndicatorForeground)
+        .padding(.horizontal, 7)
         .padding(.vertical, 3)
-        .background(isSelected ? Color.orange.opacity(0.15) : Color.orange.opacity(0.08))
+        .background(detailsIndicatorBackground)
         .overlay(
-            Capsule().strokeBorder(isSelected ? Color.orange.opacity(0.26) : Color.orange.opacity(0.16), lineWidth: 0.5)
+            Capsule().strokeBorder(detailsIndicatorStroke, lineWidth: 0.5)
         )
         .clipShape(Capsule())
-        .orangeHoverShimmer(cornerRadius: 999, opacity: 0.045)
+        .frame(width: detailsIndicatorWidth, alignment: .trailing)
+        .orangeHoverShimmer(cornerRadius: 999, opacity: 0.11)
+    }
+
+    private var detailsIndicatorLabel: String {
+        record.isEmpty ? "NO GRAINS" : "VIEW GRAINS"
+    }
+
+    private var detailsIndicatorForeground: Color {
+        record.isEmpty ? Color.green.opacity(0.86) : Color.orange.opacity(0.92)
+    }
+
+    private var detailsIndicatorBackground: Color {
+        if record.isEmpty { return Color.green.opacity(0.10) }
+        return isSelected ? Color.orange.opacity(0.15) : Color.orange.opacity(0.08)
+    }
+
+    private var detailsIndicatorStroke: Color {
+        if record.isEmpty { return Color.green.opacity(0.22) }
+        return isSelected ? Color.orange.opacity(0.26) : Color.orange.opacity(0.16)
+    }
+
+    private var detailsIndicatorWidth: CGFloat {
+        record.isEmpty ? 82 : 90
     }
 
     private var filmBadge: some View {
@@ -910,19 +1218,6 @@ struct TimelineCardView: View {
         .clipShape(Capsule())
     }
 
-    private func locationPill(_ location: PersistenceLocation) -> some View {
-        return Text(location.shortName.lowercased())
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(Color.white.opacity(0.04))
-            .overlay(
-                Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
-            )
-            .clipShape(Capsule())
-            .orangeHoverShimmer(cornerRadius: 999, opacity: 0.04)
-    }
 }
 
 // MARK: - DashboardDetailPane
@@ -930,9 +1225,34 @@ struct TimelineCardView: View {
 struct DashboardDetailPane: View {
     let record: DiffRecord
     let storageService: StorageService
+    let horizontalInset: CGFloat
+    let topInset: CGFloat
+    let cardCornerRadius: CGFloat
 
     @State private var diff: PersistenceDiff? = nil
     @State private var isLoading = true
+    @State private var actionNotice: ActionNotice? = nil
+    @State private var actionInFlightPaths: Set<String> = []
+    private let helperService = HelperService()
+
+    private struct ActionNotice: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
+    }
+
+    private enum ItemAction {
+        case disable
+        case quarantine
+    }
+
+    private struct LaunchActionContext {
+        let path: String
+        let label: String
+        let domain: String
+        let userUID: Int
+        let quarantineRoot: String
+    }
 
     var body: some View {
         ScrollView {
@@ -954,11 +1274,20 @@ struct DashboardDetailPane: View {
                     }
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, horizontalInset)
+            .padding(.top, topInset)
+            .padding(.bottom, 84)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .windowEndFade()
         .task(id: record.id) { await loadDiff() }
+        .alert(item: $actionNotice) { notice in
+            Alert(
+                title: Text(notice.title),
+                message: Text(notice.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
 
     private var eventMetaBlock: some View {
@@ -989,6 +1318,9 @@ struct DashboardDetailPane: View {
             }
             .padding(.top, 2)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .rightPaneCardSurface(cornerRadius: cardCornerRadius)
     }
 
     private var whatText: String {
@@ -1008,7 +1340,7 @@ struct DashboardDetailPane: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 72, alignment: .leading)
             Text(value)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .font(.system(size: 13, weight: .medium, design: .monospaced))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .truncationMode(.middle)
@@ -1027,23 +1359,37 @@ struct DashboardDetailPane: View {
 
     private func detailSection(_ title: String, items: [PersistenceItem], tone: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(tone.opacity(0.9))
-                Text("\(items.count)")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-            }
+            Text(title)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(tone.opacity(0.9))
 
             ForEach(items) { item in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .top, spacing: 8) {
+                        Image(nsImage: responsibleIcon(for: item))
+                            .resizable()
+                            .frame(width: 16, height: 16)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .padding(.top, 1)
                         Text(item.filename)
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .font(.system(size: 13, weight: .medium, design: .monospaced))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                         Spacer(minLength: 0)
+                        if launchActionContext(for: item) != nil {
+                            HStack(spacing: 6) {
+                                actionTextButton("Quarantine", recommended: true) {
+                                    Task { await runItemAction(.quarantine, for: item) }
+                                }
+                                .help("Move to quarantine folder and stop the service")
+
+                                actionTextButton("Disable", recommended: false) {
+                                    Task { await runItemAction(.disable, for: item) }
+                                }
+                                .help("launchctl disable only")
+                            }
+                            .disabled(actionInFlightPaths.contains(item.fullPath))
+                        }
                         SourceFolderButton(filePath: item.fullPath)
                     }
                     metaInfoRow("source", value: item.location.displayName)
@@ -1058,29 +1404,175 @@ struct DashboardDetailPane: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(tone.opacity(0.035))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(tone.opacity(0.18), lineWidth: 0.5)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .rightPaneCardSurface(cornerRadius: cardCornerRadius)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func responsibleIcon(for item: PersistenceItem) -> NSImage {
+        let fm = FileManager.default
+
+        if let bundlePath = item.attribution?.appBundlePath,
+           fm.fileExists(atPath: bundlePath) {
+            return NSWorkspace.shared.icon(forFile: bundlePath)
+        }
+
+        if let programPath = item.programPath {
+            if let appBundlePath = appBundlePath(fromProgramPath: programPath),
+               fm.fileExists(atPath: appBundlePath) {
+                return NSWorkspace.shared.icon(forFile: appBundlePath)
+            }
+            if fm.fileExists(atPath: programPath) {
+                return NSWorkspace.shared.icon(forFile: programPath)
+            }
+        }
+
+        if fm.fileExists(atPath: item.fullPath) {
+            return NSWorkspace.shared.icon(forFile: item.fullPath)
+        }
+
+        return NSWorkspace.shared.icon(for: .data)
+    }
+
+    private func appBundlePath(fromProgramPath path: String) -> String? {
+        var url = URL(fileURLWithPath: path)
+        for _ in 0..<12 {
+            let currentPath = url.path
+            if currentPath == "/" { break }
+            if currentPath.hasSuffix(".app") { return currentPath }
+            url.deleteLastPathComponent()
+        }
+        return nil
+    }
+
+    private func launchActionContext(for item: PersistenceItem) -> LaunchActionContext? {
+        guard item.fullPath.hasSuffix(".plist") else { return nil }
+
+        let domain: String
+        switch item.location {
+        case .systemLaunchDaemons, .systemLaunchAgents:
+            domain = "system"
+        case .userLaunchAgents:
+            domain = "gui"
+        default:
+            return nil
+        }
+
+        let cleanedLabel = (item.label ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = URL(fileURLWithPath: item.fullPath).deletingPathExtension().lastPathComponent
+        let label = cleanedLabel.isEmpty ? fallback : cleanedLabel
+        // Keep quarantine material in a visible, user-owned location.
+        let quarantineRoot = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/LatentGrain/Quarantine")
+            .path
+
+        return LaunchActionContext(
+            path: item.fullPath,
+            label: label,
+            domain: domain,
+            userUID: Int(getuid()),
+            quarantineRoot: quarantineRoot
+        )
+    }
+
+    @MainActor
+    private func runItemAction(_ action: ItemAction, for item: PersistenceItem) async {
+        guard let ctx = launchActionContext(for: item) else {
+            actionNotice = ActionNotice(
+                title: "Action unavailable",
+                message: "This persistence item type does not support disable/quarantine actions."
+            )
+            return
+        }
+
+        actionInFlightPaths.insert(item.fullPath)
+        defer { actionInFlightPaths.remove(item.fullPath) }
+
+        do {
+            switch action {
+            case .disable:
+                try await helperService.disableItem(
+                    path: ctx.path,
+                    label: ctx.label,
+                    domain: ctx.domain,
+                    userUID: ctx.userUID
+                )
+                storageService.upsertPersistenceAction(
+                    originalPath: ctx.path,
+                    label: ctx.label,
+                    domain: ctx.domain,
+                    userUID: ctx.userUID,
+                    kind: .disabled,
+                    quarantinePath: nil
+                )
+                actionNotice = ActionNotice(
+                    title: "Item disabled",
+                    message: "launchctl disable applied to \(item.filename)."
+                )
+            case .quarantine:
+                let quarantinedPath = try await helperService.quarantineItem(
+                    path: ctx.path,
+                    label: ctx.label,
+                    domain: ctx.domain,
+                    userUID: ctx.userUID,
+                    quarantineRoot: ctx.quarantineRoot
+                )
+                storageService.upsertPersistenceAction(
+                    originalPath: ctx.path,
+                    label: ctx.label,
+                    domain: ctx.domain,
+                    userUID: ctx.userUID,
+                    kind: .quarantined,
+                    quarantinePath: quarantinedPath
+                )
+                let detail = quarantinedPath ?? "Quarantine move completed."
+                actionNotice = ActionNotice(
+                    title: "Item quarantined",
+                    message: detail
+                )
+            }
+        } catch {
+            actionNotice = ActionNotice(
+                title: "Action failed",
+                message: error.localizedDescription
+            )
+        }
+    }
+
     private func metaInfoRow(_ key: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text(key)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 96, alignment: .leading)
             Text(value)
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func actionTextButton(_ title: String, recommended: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(recommended ? Color.orange : .secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(recommended ? Color.orange.opacity(0.10) : Color.white.opacity(0.03))
+                .overlay(
+                    Capsule().strokeBorder(
+                        recommended ? Color.orange.opacity(0.22) : Color.white.opacity(0.10),
+                        lineWidth: 0.6
+                    )
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .orangeHoverShimmer(cornerRadius: 999, opacity: 0.11)
     }
 
     private func loadDiff() async {
@@ -1181,7 +1673,7 @@ private struct HoverSheenModifier: ViewModifier {
     private func updateAnimation(active: Bool) {
         phase = 0
         guard active else { return }
-        withAnimation(.linear(duration: 2.8).repeatForever(autoreverses: false)) {
+        withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
             phase = 360
         }
     }
@@ -1192,7 +1684,7 @@ private extension View {
         modifier(HoverSheenModifier(active: active, opacity: opacity, cornerRadius: cornerRadius))
     }
 
-    func orangeHoverShimmer(cornerRadius: CGFloat = 10, opacity: Double = 0.045) -> some View {
+    func orangeHoverShimmer(cornerRadius: CGFloat = 10, opacity: Double = 0.10) -> some View {
         modifier(OrangeHoverShimmerModifier(cornerRadius: cornerRadius, opacity: opacity))
     }
 
@@ -1210,6 +1702,7 @@ private extension View {
             }
         )
     }
+
 }
 
 private struct OrangeHoverShimmerModifier: ViewModifier {
