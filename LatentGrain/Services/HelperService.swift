@@ -34,44 +34,58 @@ class HelperService {
         if connection == nil { connect() }
     }
 
-    func scanDaemons() async throws -> [String] {
+    /// Resolves the XPC proxy and hands it to `body`, eliminating boilerplate
+    /// connection setup from every remote call site.
+    private func withProxy<T>(
+        _ body: @escaping (LatentGrainXPCProtocol, CheckedContinuation<T, Error>) -> Void
+    ) async throws -> T {
         ensureConnected()
-        guard let conn = connection else {
-            throw HelperError.notConnected
-        }
-
+        guard let conn = connection else { throw HelperError.notConnected }
         return try await withCheckedThrowingContinuation { continuation in
             let proxy = conn.remoteObjectProxyWithErrorHandler { error in
                 continuation.resume(throwing: error)
-            } as? LatentGrainXPCProtocol
+            }
+            guard let proxy = proxy as? LatentGrainXPCProtocol else {
+                continuation.resume(throwing: HelperError.notConnected)
+                return
+            }
+            body(proxy, continuation)
+        }
+    }
 
-            proxy?.scanLocation(PersistenceLocation.systemLaunchDaemons.resolvedPath) { result, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: result?["paths"] as? [String] ?? [])
-                }
+    /// Void-returning variant — Swift cannot infer `T = Void` from the call site.
+    private func withProxyVoid(
+        _ body: @escaping (LatentGrainXPCProtocol, CheckedContinuation<Void, Error>) -> Void
+    ) async throws {
+        ensureConnected()
+        guard let conn = connection else { throw HelperError.notConnected }
+        return try await withCheckedThrowingContinuation { continuation in
+            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
+                continuation.resume(throwing: error)
+            }
+            guard let proxy = proxy as? LatentGrainXPCProtocol else {
+                continuation.resume(throwing: HelperError.notConnected)
+                return
+            }
+            body(proxy, continuation)
+        }
+    }
+
+
+    func scanDaemons() async throws -> [String] {
+        try await withProxy { proxy, continuation in
+            proxy.scanLocation(PersistenceLocation.systemLaunchDaemons.resolvedPath) { result, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: result?["paths"] as? [String] ?? []) }
             }
         }
     }
 
     func disableItem(path: String, label: String, domain: String, userUID: Int) async throws {
-        ensureConnected()
-        guard let conn = connection else {
-            throw HelperError.notConnected
-        }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: error)
-            } as? LatentGrainXPCProtocol
-
-            proxy?.disableItem(path, label: label, domain: domain, userUID: userUID) { _, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
+        try await withProxyVoid { proxy, continuation in
+            proxy.disableItem(path, label: label, domain: domain, userUID: userUID) { _, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume() }
             }
         }
     }
@@ -83,49 +97,25 @@ class HelperService {
         userUID: Int,
         quarantineRoot: String
     ) async throws -> String? {
-        ensureConnected()
-        guard let conn = connection else {
-            throw HelperError.notConnected
-        }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: error)
-            } as? LatentGrainXPCProtocol
-
-            proxy?.quarantineItem(
+        try await withProxy { proxy, continuation in
+            proxy.quarantineItem(
                 path,
                 label: label,
                 domain: domain,
                 userUID: userUID,
                 quarantineRoot: quarantineRoot
             ) { result, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: result?["quarantinePath"] as? String)
-                }
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: result?["quarantinePath"] as? String) }
             }
         }
     }
 
     func enableItem(path: String, label: String, domain: String, userUID: Int) async throws {
-        ensureConnected()
-        guard let conn = connection else {
-            throw HelperError.notConnected
-        }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: error)
-            } as? LatentGrainXPCProtocol
-
-            proxy?.enableItem(path, label: label, domain: domain, userUID: userUID) { _, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
+        try await withProxyVoid { proxy, continuation in
+            proxy.enableItem(path, label: label, domain: domain, userUID: userUID) { _, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume() }
             }
         }
     }
@@ -137,28 +127,16 @@ class HelperService {
         domain: String,
         userUID: Int
     ) async throws {
-        ensureConnected()
-        guard let conn = connection else {
-            throw HelperError.notConnected
-        }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            let proxy = conn.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: error)
-            } as? LatentGrainXPCProtocol
-
-            proxy?.restoreQuarantinedItem(
+        try await withProxyVoid { proxy, continuation in
+            proxy.restoreQuarantinedItem(
                 originalPath: originalPath,
                 quarantinedPath: quarantinedPath,
                 label: label,
                 domain: domain,
                 userUID: userUID
             ) { _, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume() }
             }
         }
     }

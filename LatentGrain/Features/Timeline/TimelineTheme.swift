@@ -9,13 +9,9 @@ enum TimelineTheme {
 }
 
 extension View {
-    func leftPaneCardSurface(selected: Bool, hovered: Bool, cornerRadius: CGFloat = TimelineTheme.rightPaneCardCorner) -> some View {
-        let bg = selected
-            ? Color.accentColor.opacity(0.16)
-            : Color.white.opacity(hovered ? 0.08 : 0.03)
-        let stroke = selected
-            ? Color.accentColor.opacity(0.28)
-            : Color.white.opacity(0.10)
+    func leftPaneCardSurface(selected: Bool, cornerRadius: CGFloat = TimelineTheme.rightPaneCardCorner) -> some View {
+        let bg     = selected ? Color.accentColor.opacity(0.16) : Color.white.opacity(0.03)
+        let stroke = selected ? Color.accentColor.opacity(0.28) : Color.white.opacity(0.10)
 
         return background(bg)
             .overlay(

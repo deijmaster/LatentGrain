@@ -42,41 +42,72 @@ extension View {
         ))
     }
 
-    func leftPaneCardSurface(selected: Bool, hovered: Bool, cornerRadius: CGFloat = TimelineTheme.rightPaneCardCorner) -> some View {
-        let bg = selected
-            ? Color.accentColor.opacity(0.16)
-            : Color.white.opacity(hovered ? 0.08 : 0.03)
-        let stroke = selected
-            ? Color.accentColor.opacity(0.28)
-            : Color.white.opacity(0.10)
-
-        return background(bg)
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(stroke, lineWidth: 0.6)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    /// Rotating orange angular-gradient border that appears on hover.
+    /// Single source of truth for all card hover feedback in the app.
+    func orangeHoverShimmer(cornerRadius: CGFloat = 10, opacity: Double = 0.10) -> some View {
+        modifier(OrangeHoverShimmerModifier(cornerRadius: cornerRadius, opacity: opacity))
     }
 
-    func rightPaneCardSurface(selected: Bool = false, cornerRadius: CGFloat = TimelineTheme.rightPaneCardCorner) -> some View {
-        background(selected ? Color.accentColor.opacity(0.16) : Color.white.opacity(0.03))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(
-                        selected ? Color.accentColor.opacity(0.28) : Color.white.opacity(0.08),
-                        lineWidth: 0.6
-                    )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    /// Lower-level shimmer driven by an external `active` flag.
+    /// Use `orangeHoverShimmer` for self-contained hover behaviour.
+    func hoverSheen(active: Bool, opacity: Double = 0.08, cornerRadius: CGFloat = 10) -> some View {
+        modifier(HoverSheenModifier(active: active, opacity: opacity, cornerRadius: cornerRadius))
     }
 }
 
-// MARK: - Timeline Theme
+// MARK: - HoverSheenModifier
 
-enum TimelineTheme {
-    static let leftPaneWidth: CGFloat = 420
-    static let rightPaneMinWidth: CGFloat = 420
-    static let rightPaneHorizontalInset: CGFloat = 16
-    static let rightPaneTopInset: CGFloat = 14
-    static let rightPaneCardCorner: CGFloat = 10
+struct HoverSheenModifier: ViewModifier {
+    let active: Bool
+    let opacity: Double
+    let cornerRadius: CGFloat
+    @State private var phase: Double = 0
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(
+                        AngularGradient(
+                            colors: [
+                                Color.orange.opacity(0.0),
+                                Color.orange.opacity(opacity),
+                                Color.orange.opacity(opacity * 0.45),
+                                Color.orange.opacity(0.0),
+                                Color.orange.opacity(0.0)
+                            ],
+                            center: .center,
+                            angle: .degrees(phase)
+                        ),
+                        lineWidth: 0.9
+                    )
+                    .opacity(active ? 1 : 0)
+                    .blendMode(.plusLighter)
+                    .allowsHitTesting(false)
+            }
+            .onAppear { updateAnimation(active: active) }
+            .onChange(of: active) { _, newValue in updateAnimation(active: newValue) }
+    }
+
+    private func updateAnimation(active: Bool) {
+        phase = 0
+        guard active else { return }
+        withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
+            phase = 360
+        }
+    }
+}
+
+// MARK: - OrangeHoverShimmerModifier
+
+struct OrangeHoverShimmerModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let opacity: Double
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .hoverSheen(active: isHovered, opacity: opacity, cornerRadius: cornerRadius)
+            .onHover { isHovered = $0 }
+    }
 }

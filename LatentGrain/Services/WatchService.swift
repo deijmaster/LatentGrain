@@ -146,6 +146,10 @@ final class WatchService {
         Task { @MainActor [weak self] in
             guard let self else { return }
 
+            // Suppress events triggered by app-initiated actions (quarantine,
+            // disable) so we don't alert the user about their own changes.
+            guard Date() >= self.storage.suppressWatchUntil else { return }
+
             guard let baseline = self.storage.snapshots.last else {
                 // No baseline yet: take a silent first snapshot and save it.
                 if let snapshot = try? await self.scanService.takeSnapshot(label: "Auto") {

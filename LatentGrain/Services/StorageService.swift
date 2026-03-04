@@ -14,6 +14,11 @@ final class StorageService: ObservableObject {
     /// Cleared when the diff is revealed (Develop pressed) or manually dismissed.
     private(set) var pendingDiffPair: PendingDiffPairRecord?
 
+    /// When set to a future date, WatchService skips processing FSEvents that
+    /// arrive before that date. Used to suppress noise from app-initiated actions
+    /// (quarantine, disable) that intentionally move files on disk.
+    var suppressWatchUntil: Date = .distantPast
+
     private let storageURL:       URL
     private let diffRecordsURL:   URL
     private let pendingDiffURL:   URL

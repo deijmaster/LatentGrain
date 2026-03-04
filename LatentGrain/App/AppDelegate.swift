@@ -21,7 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var watchService: WatchService?
     private var watchObserver: Any?
     private var updateTimer: Timer?
-    private let persistenceActionHelper = HelperService()
     /// Tracks the FDA state as of the last `appDidBecomeActive` call so we only
     /// restart WatchService when it actually changes.  Kept here on @MainActor
     /// to avoid reading WatchService's internal state from a foreign thread.
@@ -250,10 +249,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         githubItem.image = NSImage(systemSymbolName: "arrow.up.right.square", accessibilityDescription: nil)
         menu.addItem(githubItem)
 
-        menu.addItem(.separator())
-
-        menu.addItem(makePersistenceActionsMenuItem())
-
         if scanViewModel.isUpdateAvailable, let tag = scanViewModel.latestTag {
             menu.addItem(.separator())
             let updateItem = NSMenuItem(
@@ -285,136 +280,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openWindow() { showPopover() }
-
-    private func makePersistenceActionsMenuItem() -> NSMenuItem {
-        let root = NSMenuItem(title: "Quarantine Actions", action: nil, keyEquivalent: "")
-        root.image = NSImage(systemSymbolName: "lock.shield", accessibilityDescription: nil)
-
-        let submenu = NSMenu()
-        let disabled = scanViewModel.storageService.activePersistenceActions(of: .disabled)
-        let quarantined = scanViewModel.storageService.activePersistenceActions(of: .quarantined)
-
-        let disabledItem = NSMenuItem(title: "Disabled (\(disabled.count))", action: nil, keyEquivalent: "")
-        disabledItem.image = NSImage(systemSymbolName: "bolt.slash", accessibilityDescription: nil)
-        let disabledSubmenu = NSMenu()
-        if disabled.isEmpty {
-            let none = NSMenuItem(title: "No disabled items", action: nil, keyEquivalent: "")
-            none.isEnabled = false
-            disabledSubmenu.addItem(none)
-        } else {
-            for record in disabled {
-                let item = NSMenuItem(title: menuTitle(for: record), action: #selector(reEnableItem(_:)), keyEquivalent: "")
-                item.target = self
-                item.representedObject = record.id.uuidString
-                item.image = NSImage(systemSymbolName: "arrow.uturn.left.circle", accessibilityDescription: nil)
-                disabledSubmenu.addItem(item)
-            }
-        }
-        disabledItem.submenu = disabledSubmenu
-        submenu.addItem(disabledItem)
-
-        let quarantinedItem = NSMenuItem(title: "Quarantined (\(quarantined.count))", action: nil, keyEquivalent: "")
-        quarantinedItem.image = NSImage(systemSymbolName: "archivebox", accessibilityDescription: nil)
-        let quarantinedSubmenu = NSMenu()
-        if quarantined.isEmpty {
-            let none = NSMenuItem(title: "No quarantined items", action: nil, keyEquivalent: "")
-            none.isEnabled = false
-            quarantinedSubmenu.addItem(none)
-        } else {
-            for record in quarantined {
-                let item = NSMenuItem(title: menuTitle(for: record), action: #selector(restoreQuarantinedItem(_:)), keyEquivalent: "")
-                item.target = self
-                item.representedObject = record.id.uuidString
-                item.image = NSImage(systemSymbolName: "arrow.uturn.left.circle", accessibilityDescription: nil)
-                quarantinedSubmenu.addItem(item)
-            }
-        }
-        quarantinedItem.submenu = quarantinedSubmenu
-        submenu.addItem(quarantinedItem)
-
-        submenu.addItem(.separator())
-        let openQuarantine = NSMenuItem(title: "Open Quarantine Folder", action: #selector(openQuarantineFolder), keyEquivalent: "")
-        openQuarantine.target = self
-        openQuarantine.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
-        submenu.addItem(openQuarantine)
-
-        root.submenu = submenu
-        return root
-    }
-
-    private func menuTitle(for record: StorageService.PersistenceActionRecord) -> String {
-        let filename = URL(fileURLWithPath: record.originalPath).lastPathComponent
-        return "\(filename) — \(record.label)"
-    }
-
-    @objc private func reEnableItem(_ sender: NSMenuItem) {
-        guard let record = persistenceActionRecord(from: sender) else { return }
-        Task { @MainActor in
-            do {
-                try await persistenceActionHelper.enableItem(
-                    path: record.originalPath,
-                    label: record.label,
-                    domain: record.domain,
-                    userUID: record.userUID
-                )
-                scanViewModel.storageService.markPersistenceActionRestored(id: record.id)
-                showPersistenceActionAlert(
-                    title: "Re-enabled",
-                    message: "\(URL(fileURLWithPath: record.originalPath).lastPathComponent) is enabled again."
-                )
-            } catch {
-                showPersistenceActionAlert(title: "Enable failed", message: error.localizedDescription)
-            }
-        }
-    }
-
-    @objc private func restoreQuarantinedItem(_ sender: NSMenuItem) {
-        guard let record = persistenceActionRecord(from: sender),
-              let quarantinedPath = record.quarantinePath else { return }
-        Task { @MainActor in
-            do {
-                try await persistenceActionHelper.restoreQuarantinedItem(
-                    originalPath: record.originalPath,
-                    quarantinedPath: quarantinedPath,
-                    label: record.label,
-                    domain: record.domain,
-                    userUID: record.userUID
-                )
-                scanViewModel.storageService.markPersistenceActionRestored(id: record.id)
-                showPersistenceActionAlert(
-                    title: "Restored",
-                    message: "\(URL(fileURLWithPath: record.originalPath).lastPathComponent) restored from quarantine."
-                )
-            } catch {
-                showPersistenceActionAlert(title: "Restore failed", message: error.localizedDescription)
-            }
-        }
-    }
-
-    private func persistenceActionRecord(from sender: NSMenuItem) -> StorageService.PersistenceActionRecord? {
-        guard let idText = sender.representedObject as? String,
-              let id = UUID(uuidString: idText) else { return nil }
-        return scanViewModel.storageService.persistenceActions.first(where: { $0.id == id && $0.status == .active })
-    }
-
-    @objc private func openQuarantineFolder() {
-        let path = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/LatentGrain/Quarantine")
-            .path
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: path) {
-            try? fm.createDirectory(atPath: path, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        }
-        NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
-    }
-
-    private func showPersistenceActionAlert(title: String, message: String) {
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = title
-        alert.informativeText = message
-        alert.runModal()
-    }
 
     @objc private func openTimeline() { showTimelineWindow() }
 

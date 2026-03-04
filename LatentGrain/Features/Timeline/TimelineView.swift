@@ -1,7 +1,5 @@
 import SwiftUI
 import AppKit
-import Darwin
-import UniformTypeIdentifiers
 
 // MARK: - TimelineView
 
@@ -19,6 +17,7 @@ struct TimelineView: View {
     private let detailTopAlignOffset: CGFloat = 44
     @State private var restoreNotice: RestoreNotice? = nil
     @State private var restoringActionIDs: Set<UUID> = []
+    @State private var hasUnseenActions = false
     private let actionHelperService = HelperService()
 
     private struct RestoreNotice: Identifiable {
@@ -278,7 +277,6 @@ struct TimelineView: View {
             } else {
                 HStack(spacing: 0) {
                     VStack(spacing: 0) {
-                        leftTimelineToolbar
                         ScrollView(.vertical, showsIndicators: true) {
                             LazyVStack(spacing: 0) {
                                 ForEach(Array(records.enumerated()), id: \.element.id) { index, record in
@@ -328,9 +326,10 @@ struct TimelineView: View {
                                 }
                             }
                             .padding(.top, 12)
-                            .padding(.bottom, 84)
+                            .padding(.bottom, 12)
                         }
                         .windowEndFade()
+                        leftTimelineToolbar
                     }
                     .frame(width: TimelineTheme.leftPaneWidth)
 
@@ -343,7 +342,8 @@ struct TimelineView: View {
                                     storageService: storageService,
                                     horizontalInset: TimelineTheme.rightPaneHorizontalInset,
                                     topInset: TimelineTheme.rightPaneTopInset,
-                                    cardCornerRadius: TimelineTheme.rightPaneCardCorner
+                                    cardCornerRadius: TimelineTheme.rightPaneCardCorner,
+                                    onActionTaken: { hasUnseenActions = true }
                                 )
                             }
                             .id(record.id)
@@ -674,7 +674,7 @@ struct TimelineView: View {
         .frame(maxWidth: .infinity, minHeight: 88, alignment: .leading)
         .padding(.horizontal, 11)
         .padding(.vertical, 10)
-        .leftPaneCardSurface(selected: isSelected, hovered: false, cornerRadius: 10)
+        .leftPaneCardSurface(selected: isSelected, cornerRadius: 10)
         .opacity(isSelected ? 1.0 : 0.92)
         .saturation(isSelected ? 1.0 : 0.90)
         .orangeHoverShimmer(cornerRadius: 10, opacity: 0.14)
@@ -951,30 +951,48 @@ struct TimelineView: View {
     private var dashboardTabs: some View {
         HStack(spacing: 6) {
             ForEach(DashboardTab.allCases) { tab in
+                let isActive  = dashboardTab == tab
+                let hasAlert  = tab == .actions && hasUnseenActions && !isActive
+
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
                         dashboardTab = tab
+                        if tab == .actions { hasUnseenActions = false }
                     }
                 } label: {
                     Text(tab.title)
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(dashboardTab == tab ? .primary : .secondary)
+                        .foregroundStyle(hasAlert ? Color.orange : (isActive ? .primary : .secondary))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
                         .background(
-                            dashboardTab == tab ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.03)
+                            hasAlert
+                                ? Color.orange.opacity(0.15)
+                                : (isActive ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.03))
                         )
-                    .overlay(
-                        Capsule().strokeBorder(
-                            dashboardTab == tab ? Color.accentColor.opacity(0.30) : Color.white.opacity(0.10),
-                            lineWidth: 0.6
+                        .overlay(
+                            Capsule().strokeBorder(
+                                hasAlert
+                                    ? Color.orange.opacity(0.40)
+                                    : (isActive ? Color.accentColor.opacity(0.30) : Color.white.opacity(0.10)),
+                                lineWidth: 0.6
+                            )
                         )
-                    )
-                    .clipShape(Capsule())
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .focusable(false)
                 .orangeHoverShimmer(cornerRadius: 999, opacity: 0.11)
+                .overlay(alignment: .topTrailing) {
+                    if hasAlert {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 6, height: 6)
+                            .offset(x: 3, y: -3)
+                            .transition(.scale(scale: 0.1).combined(with: .opacity))
+                    }
+                }
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: hasAlert)
             }
         }
     }
@@ -1068,8 +1086,6 @@ struct TimelineCardView: View {
     let record: DiffRecord
     let isSelected: Bool
 
-    @State private var isHovered = false
-
     private var moodColor: Color {
         if record.isEmpty { return .green }
         if record.removedCount > 0 { return .red }
@@ -1092,8 +1108,6 @@ struct TimelineCardView: View {
     }
 
     var body: some View {
-        let restingEmphasis: Double = isSelected ? 1.0 : (isHovered ? 0.95 : 0.88)
-
         VStack(alignment: .leading, spacing: 0) {
             // Main card content
             VStack(alignment: .leading, spacing: 0) {
@@ -1131,11 +1145,10 @@ struct TimelineCardView: View {
             .padding(.vertical, 10)
             .transaction { tx in tx.animation = nil }
         }
-        .leftPaneCardSurface(selected: isSelected, hovered: isHovered, cornerRadius: 10)
-        .hoverSheen(active: isHovered, opacity: 0.05, cornerRadius: 10)
-        .scaleEffect(isHovered ? 1.004 : 1.0)
-        .opacity(restingEmphasis)
+        .leftPaneCardSurface(selected: isSelected, cornerRadius: 10)
+        .opacity(isSelected ? 1.0 : 0.88)
         .saturation(isSelected ? 1.0 : 0.88)
+        .orangeHoverShimmer(cornerRadius: 10, opacity: 0.11)
         .overlay(alignment: .trailing) {
             if isSelected && !record.isEmpty {
                 HStack(spacing: 4) {
@@ -1150,8 +1163,6 @@ struct TimelineCardView: View {
                 .allowsHitTesting(false)
             }
         }
-        .onHover { isHovered = $0 }
-        .animation(.easeInOut(duration: 0.12), value: isHovered)
     }
 
     private var detailsIndicator: some View {
@@ -1228,6 +1239,7 @@ struct DashboardDetailPane: View {
     let horizontalInset: CGFloat
     let topInset: CGFloat
     let cardCornerRadius: CGFloat
+    var onActionTaken: () -> Void = {}
 
     @State private var diff: PersistenceDiff? = nil
     @State private var isLoading = true
@@ -1486,8 +1498,23 @@ struct DashboardDetailPane: View {
             return
         }
 
+        // System-domain items (daemons and system-wide agents) require root to
+        // modify. The embedded XPC helper runs as the current user, so these
+        // operations will fail. Warn upfront rather than silently erroring.
+        if ctx.domain == "system" {
+            actionNotice = ActionNotice(
+                title: "Elevated privileges required",
+                message: "Disabling or quarantining system-level items (/Library/LaunchDaemons, /Library/LaunchAgents) requires root access. This is not yet supported — only user launch agents (~Library/LaunchAgents) can be acted on."
+            )
+            return
+        }
+
         actionInFlightPaths.insert(item.fullPath)
         defer { actionInFlightPaths.remove(item.fullPath) }
+
+        // Suppress WatchService for 20 s so the file-system change we're about
+        // to make doesn't trigger a "new persistence item" alert on ourselves.
+        storageService.suppressWatchUntil = Date().addingTimeInterval(20)
 
         do {
             switch action {
@@ -1510,6 +1537,7 @@ struct DashboardDetailPane: View {
                     title: "Item disabled",
                     message: "launchctl disable applied to \(item.filename)."
                 )
+                onActionTaken()
             case .quarantine:
                 let quarantinedPath = try await helperService.quarantineItem(
                     path: ctx.path,
@@ -1531,6 +1559,7 @@ struct DashboardDetailPane: View {
                     title: "Item quarantined",
                     message: detail
                 )
+                onActionTaken()
             }
         } catch {
             actionNotice = ActionNotice(
@@ -1634,60 +1663,8 @@ private struct SourceFolderButton: View {
     }
 }
 
-private struct HoverSheenModifier: ViewModifier {
-    let active: Bool
-    let opacity: Double
-    let cornerRadius: CGFloat
-    @State private var phase: Double = 0
-
-    func body(content: Content) -> some View {
-        content
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .strokeBorder(
-                        AngularGradient(
-                        colors: [
-                            Color.orange.opacity(0.0),
-                            Color.orange.opacity(opacity),
-                            Color.orange.opacity(opacity * 0.45),
-                            Color.orange.opacity(0.0),
-                            Color.orange.opacity(0.0)
-                        ],
-                        center: .center,
-                        angle: .degrees(phase)
-                        ),
-                        lineWidth: 0.9
-                    )
-                    .opacity(active ? 1 : 0)
-                    .blendMode(.plusLighter)
-                    .allowsHitTesting(false)
-            }
-            .onAppear {
-                updateAnimation(active: active)
-            }
-            .onChange(of: active) { _, newValue in
-                updateAnimation(active: newValue)
-            }
-    }
-
-    private func updateAnimation(active: Bool) {
-        phase = 0
-        guard active else { return }
-        withAnimation(.linear(duration: 6.0).repeatForever(autoreverses: false)) {
-            phase = 360
-        }
-    }
-}
 
 private extension View {
-    func hoverSheen(active: Bool, opacity: Double = 0.08, cornerRadius: CGFloat = 10) -> some View {
-        modifier(HoverSheenModifier(active: active, opacity: opacity, cornerRadius: cornerRadius))
-    }
-
-    func orangeHoverShimmer(cornerRadius: CGFloat = 10, opacity: Double = 0.10) -> some View {
-        modifier(OrangeHoverShimmerModifier(cornerRadius: cornerRadius, opacity: opacity))
-    }
-
     // Masks the view so lower content fades out instead of hitting a hard edge.
     func windowEndFade(height: CGFloat = 56) -> some View {
         mask(
@@ -1701,18 +1678,5 @@ private extension View {
                 .frame(height: height)
             }
         )
-    }
-
-}
-
-private struct OrangeHoverShimmerModifier: ViewModifier {
-    let cornerRadius: CGFloat
-    let opacity: Double
-    @State private var isHovered = false
-
-    func body(content: Content) -> some View {
-        content
-            .hoverSheen(active: isHovered, opacity: opacity, cornerRadius: cornerRadius)
-            .onHover { isHovered = $0 }
     }
 }

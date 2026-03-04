@@ -253,9 +253,6 @@ struct ItemRow: View {
 
     @AppStorage("showAttribution") private var showAttribution = true
 
-    @State private var hoverPos: CGPoint = .zero
-    @State private var isHovered = false
-    @State private var cardSize: CGSize = CGSize(width: 400, height: 80)
 
     var body: some View {
         HStack(spacing: 0) {
@@ -338,34 +335,11 @@ struct ItemRow: View {
         }
         .background(accent?.opacity(0.08) ?? Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .background(GeometryReader { geo in Color.clear.onAppear { cardSize = geo.size } })
-        .onContinuousHover(coordinateSpace: .local) { phase in
-            switch phase {
-            case .active(let loc):
-                hoverPos = loc
-                if !isHovered { withAnimation(.easeInOut(duration: 0.15)) { isHovered = true } }
-            case .ended:
-                withAnimation(.easeOut(duration: 0.3)) { isHovered = false }
-            }
-        }
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(shimmerBorder, lineWidth: 1)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.6)
         )
-    }
-
-    private var shimmerBorder: LinearGradient {
-        let base = accent ?? .white
-        guard isHovered, cardSize.width > 0 else {
-            return LinearGradient(colors: [base.opacity(0.18)], startPoint: .top, endPoint: .bottom)
-        }
-        let nx = max(0, min(1, hoverPos.x / cardSize.width))
-        let ny = max(0, min(1, hoverPos.y / cardSize.height))
-        return LinearGradient(
-            colors: [base.opacity(0.55), base.opacity(0.06)],
-            startPoint: UnitPoint(x: nx, y: ny),
-            endPoint: UnitPoint(x: 1 - nx, y: 1 - ny)
-        )
+        .orangeHoverShimmer(cornerRadius: 8, opacity: 0.11)
     }
 
     private func locationBadge(_ location: PersistenceLocation) -> some View {

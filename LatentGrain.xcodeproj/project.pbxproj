@@ -46,6 +46,7 @@
 		EF9751DEE9FAEFF16E5A6CD8 /* AttributionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC32B5D89A19B27D65D721BB /* AttributionService.swift */; };
 		F10E8F243B08DF3952505DA0 /* LatentGrainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BB931965F1614C4A481897 /* LatentGrainApp.swift */; };
 		F5847B8108060D912E1AE9F4 /* DiffDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DAD623CB26AC8690B48404 /* DiffDetailView.swift */; };
+		FAF706AE82510B3F773D73A9 /* TimelineTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D484D280CD64D91E584617 /* TimelineTheme.swift */; };
 		FCCD99DDFE99DBB8FAAEF560 /* ScanService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02F28D9553936EA4F106AFCE /* ScanService.swift */; };
 /* End PBXBuildFile section */
 
@@ -115,6 +116,7 @@
 		C2DADE1E92542DA790BAE627 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		C5131F368039DF5C56F403DF /* CoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreServices.framework; path = System/Library/Frameworks/CoreServices.framework; sourceTree = SDKROOT; };
 		D1631A7646355A18E2AF8243 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		D1D484D280CD64D91E584617 /* TimelineTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineTheme.swift; sourceTree = "<group>"; };
 		DE4D8BEEDC2372FA024969DF /* PolaroidCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolaroidCardView.swift; sourceTree = "<group>"; };
 		DEEE407EE7B5C10DCC266986 /* DiffServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffServiceTests.swift; sourceTree = "<group>"; };
 		E2551803EF7280F6A4C05B71 /* AppAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAttribution.swift; sourceTree = "<group>"; };
@@ -293,6 +295,7 @@
 		EE38F80687BB00778232EAB2 /* Timeline */ = {
 			isa = PBXGroup;
 			children = (
+				D1D484D280CD64D91E584617 /* TimelineTheme.swift */,
 				F4D4064EF3FA3FC4571F4E3C /* TimelineView.swift */,
 			);
 			path = Timeline;
@@ -450,6 +453,7 @@
 				890E98DC6F6280FD5FF82533 /* SettingsView.swift in Sources */,
 				D059539A53E31F20AA621FC8 /* SnapshotService.swift in Sources */,
 				A95DC26971CFC8377D6454D2 /* StorageService.swift in Sources */,
+				FAF706AE82510B3F773D73A9 /* TimelineTheme.swift in Sources */,
 				4C6FA35DEC60C364E7B7ED37 /* TimelineView.swift in Sources */,
 				3D0A0522682D37CBE5044D64 /* UpdateChecker.swift in Sources */,
 				C764C5D9E3B8C5C43217E943 /* WatchService.swift in Sources */,
@@ -499,7 +503,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
 				INFOPLIST_FILE = LatentGrain/App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -507,7 +511,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 4;
+				MARKETING_VERSION = 5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.latentgrain.app;
 				PRODUCT_NAME = LatentGrain;
 				SDKROOT = macosx;
@@ -662,7 +666,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = "";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
 				INFOPLIST_FILE = LatentGrain/App/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -670,7 +674,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 4;
+				MARKETING_VERSION = 5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.latentgrain.app;
 				PRODUCT_NAME = LatentGrain;
 				SDKROOT = macosx;
