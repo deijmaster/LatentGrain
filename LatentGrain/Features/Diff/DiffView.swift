@@ -1,13 +1,40 @@
 import SwiftUI
 import AppKit
 
+// MARK: - DiffView
+//
+// Full layout (top to bottom):
+//
+//   ┌─────────────────────────────────────────┐
+//   │  [polaroid]  Before  42 items  10:00    │  ← polaroid header (showPolaroids only)
+//   │              After   44 items  10:30    │    18pt top / 14pt bottom padding
+//   │              [+2] [-1]                  │    16pt horizontal inset
+//   ├─────────────────────────────────────────┤  ← Divider
+//   │  [ Search findings… ]                   │  ← search bar (revealed state only)
+//   ├─────────────────────────────────────────┤
+//   │  ADDED                                  │
+//   │  ┌─────────────────────────────────┐    │
+//   │  │ com.example.agent.plist         │    │  ← ItemRow card (glass surface)
+//   │  │ /path/to/binary           [open]│    │
+//   │  └─────────────────────────────────┘    │
+//   │  REMOVED  …                             │
+//   │  ──────────────────────────────────     │  ← Divider before All Items
+//   │  ALL ITEMS (44)                         │
+//   │    User Agents                          │
+//   │    ┌───────────────────────────────┐    │
+//   │    │ com.example.plist       [open]│    │
+//   │    └───────────────────────────────┘    │
+//   └─────────────────────────────────────────┘
+//                                40pt fade overlay at bottom edge
+
 struct DiffView: View {
 
+    // The result of comparing two snapshots — drives all displayed content
     let diff: PersistenceDiff
-    let isRevealed: Bool
+    // Set to false in contexts (e.g. Timeline) that supply their own header
     var showPolaroids: Bool = true
-    let onDevelop: () -> Void
 
+    // Current text in the search bar; filters items in the revealed results list
     @State private var searchText = ""
 
     private func matches(_ item: PersistenceItem) -> Bool {
@@ -59,12 +86,12 @@ struct DiffView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Decorative polaroid + before/after stats — hidden when a parent supplies its own header
             if showPolaroids {
-                polaroidPair
-                    .padding(.top, 12)
-                    .padding(.bottom, 12)
+                polaroid
+                    .padding(.top, 18)
+                    .padding(.bottom, 8)
 
-                Divider()
             }
 
             resultsArea
@@ -72,57 +99,117 @@ struct DiffView: View {
         }
     }
 
-    private var polaroidPair: some View {
-        HStack(alignment: .bottom, spacing: 16) {
-            PolaroidCardView(title: "BEFORE", snapshot: diff.before, isRevealed: isRevealed)
-                .rotationEffect(.degrees(-2))
-            PolaroidCardView(title: "AFTER",  snapshot: diff.after,  isRevealed: isRevealed)
-                .rotationEffect(.degrees(1.5))
+    // Header row: 54×60pt polaroid on the left (tilted −3°), stats flush to the right edge.
+    // Polaroid on the left (like an app icon), title + stat mini-cards on the right.
+    private var polaroid: some View {
+        HStack(alignment: .top, spacing: 14) {
+            PolaroidCardView()
+
+            VStack(alignment: .leading, spacing: 4) {
+                // Mini stat columns — App Store style with gradient dividers
+                HStack(alignment: .top, spacing: 0) {
+                    statColumn(
+                        label: "BEFORE",
+                        value: diff.before.timestamp.formatted(.dateTime.hour().minute()),
+                        detail: "\(diff.before.itemCount) items"
+                    )
+                    gradientDivider
+                    statColumn(
+                        label: "AFTER",
+                        value: diff.after.timestamp.formatted(.dateTime.hour().minute()),
+                        detail: "\(diff.after.itemCount) items"
+                    )
+                }
+
+                if diff.isEmpty {
+                    Text("no changes found")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.green.opacity(0.8))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(Color.green.opacity(0.09))
+                        .overlay(Capsule().strokeBorder(Color.green.opacity(0.2), lineWidth: 1))
+                        .clipShape(Capsule())
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 10)
+                } else {
+                    let total = diff.added.count + diff.removed.count + diff.modified.count
+                    Text("\(total) finding\(total == 1 ? "" : "s")")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.accentColor.opacity(0.9))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(Color.accentColor.opacity(0.09))
+                        .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.4), lineWidth: 1))
+                        .clipShape(Capsule())
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 10)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
+    }
+
+    private var gradientDivider: some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [.clear, Color.white.opacity(0.15), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: 1, height: 28)
+            .padding(.horizontal, 6)
+    }
+
+    private func statColumn(label: String, value: String, detail: String?, valueColor: Color = .secondary, detailColor: Color = .secondary) -> some View {
+        VStack(alignment: .center, spacing: 2) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .kerning(0.5)
+                .textCase(.uppercase)
+
+            Text(value)
+                .font(.system(size: 11))
+                .foregroundStyle(valueColor)
+
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(detailColor)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     @ViewBuilder
     private var resultsArea: some View {
-        if !isRevealed {
-            VStack(spacing: 6) {
-                Spacer()
-                Button("Develop", action: onDevelop)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .focusable(false)
-                Text("tap to reveal what changed")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                Spacer()
-            }
-        } else {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
                 SearchBar(
                     text: $searchText,
-                    placeholder: "Search findings…",
+                    placeholder: "Search...",
                     suggestions: suggestions
                 )
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 6)
+                .padding(.horizontal, 22)
+                .padding(.top, diff.isEmpty ? 0 : 8)
 
-                Divider()
 
                 ZStack(alignment: .bottom) {
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 20) {
+                            // Only rendered when there are actual changes to report
                             if !diff.isEmpty {
                                 changesSection
-                            } else if searchText.isEmpty {
-                                Text("Nothing changed between snapshots.")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 4)
                             }
 
+                            // Full after-snapshot inventory, grouped by location
                             allItemsSection
                         }
-                        .padding(16)
+                        .padding(22)
                         .padding(.bottom, 40)
                     }
 
@@ -135,44 +222,15 @@ struct DiffView: View {
                     .frame(height: 40)
                     .allowsHitTesting(false)
                 }
-            }
         }
     }
 
     // MARK: - Changes section
 
+    // Grouped lists for everything that was added, removed, or modified
     private var changesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                if !diff.added.isEmpty {
-                    Text("\(diff.added.count) added")
-                        .font(.system(size: 11, weight: .semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.accentColor.opacity(0.1))
-                        .foregroundStyle(Color.accentColor)
-                        .clipShape(Capsule())
-                }
-                if !diff.removed.isEmpty {
-                    Text("\(diff.removed.count) removed")
-                        .font(.system(size: 11, weight: .semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.red.opacity(0.1))
-                        .foregroundStyle(Color.red)
-                        .clipShape(Capsule())
-                }
-                if !diff.modified.isEmpty {
-                    Text("\(diff.modified.count) changed")
-                        .font(.system(size: 11, weight: .semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.1))
-                        .foregroundStyle(Color.orange)
-                        .clipShape(Capsule())
-                }
-            }
-
+            // Apply current search filter before rendering each group
             let added    = diff.added.filter(matches)
             let removed  = diff.removed.filter(matches)
             let modified = diff.modified.map(\.after).filter(matches)
@@ -189,16 +247,17 @@ struct DiffView: View {
         }
     }
 
+    // Coloured section header + a card per item — mirrors the timeline detail pane pattern
     private func itemGroup(title: String, items: [PersistenceItem], accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .kerning(0.8)
+            // Section title coloured to match the change type — same as timeline detail pane
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundStyle(accent.opacity(0.85))
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 14) {
                 ForEach(items) { item in
-                    ItemRow(item: item, accent: accent)
+                    ItemRow(item: item)
                 }
             }
         }
@@ -206,19 +265,25 @@ struct DiffView: View {
 
     // MARK: - All items section
 
+    // Complete after-snapshot inventory grouped by persistence location;
+    // doubles as the search results list when a query is active
     private var allItemsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Divider()
 
+            // Header switches between a total count and a filtered results count
             let allFiltered = diff.after.items.filter(matches)
-            Text(searchText.isEmpty
-                 ? "All Items (\(diff.after.itemCount))"
-                 : "Results (\(allFiltered.count))")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .kerning(0.8)
-                .textCase(.uppercase)
+            HStack {
+                if diff.after.itemCount > 0 {
+                    Text(searchText.isEmpty
+                         ? "All Items (\(diff.after.itemCount))"
+                         : "Results (\(allFiltered.count))")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
 
+            }
+
+            // One sub-group per location — only rendered if it has matching items
             ForEach(
                 diff.after.groupedByLocation.sorted(by: { $0.key.rawValue < $1.key.rawValue }),
                 id: \.key.rawValue
@@ -226,13 +291,15 @@ struct DiffView: View {
                 let filtered = items.filter(matches)
                 if !filtered.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
+                        // Location label — tertiary so it doesn't compete with filenames
                         Text(location.displayName.uppercased())
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.tertiary)
                             .kerning(0.5)
 
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 14) {
                             ForEach(filtered) { item in
+                                // Badge hidden because the location header already provides context
                                 ItemRow(item: item, showLocationBadge: false)
                             }
                         }
@@ -244,108 +311,107 @@ struct DiffView: View {
 }
 
 // MARK: - ItemRow
+//
+// Glass card showing one persistence item. Visual structure:
+//
+//   ┌─────────────────────────────────────────────┐
+//   │ [badge: User Agents] [runs at login]         │  ← coloured capsule badges, 10pt
+//   │ com.example.LaunchAgent.plist                │  ← filename, 13pt medium
+//   │ 🔹 MyApp                                     │  ← attribution (14×14pt icon + 12pt name)
+//   │ /Library/Application Support/…/binary        │  ← program path, 11pt, middle-truncated
+//   ├─────────────────────────────────────────────┤  ← 0.5pt hairline, white 8%
+//   │ 📂 open                                      │  ← action bar, black 20% bg, 8pt v-pad
+//   └─────────────────────────────────────────────┘
+//
+// Outer card: rightPaneCardSurface (white 3% bg, white 8% stroke) + orangeHoverShimmer.
+// No accent colour in the card itself — accent only appears in the section title above.
 
 struct ItemRow: View {
 
+    // The persistence item to display
     let item: PersistenceItem
-    var accent: Color? = nil
+    // Hide when items are already grouped under a location header
     var showLocationBadge: Bool = true
 
+    // Toggled in Settings — shows the attributed app icon and name below the filename
     @AppStorage("showAttribution") private var showAttribution = true
 
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Accent bar — spans full card height
-            if let accent {
-                Rectangle()
-                    .fill(accent)
-                    .frame(width: 3)
-                    .clipShape(UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 8))
-            }
-
-            VStack(alignment: .leading, spacing: 0) {
-                // ── Content ────────────────────────────────────────────────
-                VStack(alignment: .leading, spacing: 6) {
-                    // Badge row — location + behavior flags
-                    if showLocationBadge || item.runAtLoad == true || item.keepAlive == true {
-                        HStack(spacing: 5) {
-                            if showLocationBadge {
-                                locationBadge(item.location)
-                            }
-                            if item.location == .configurationProfiles && item.runAtLoad == true {
-                                badge("managed")
-                            } else if item.runAtLoad == true {
-                                badge("runs at login")
-                            } else if item.keepAlive == true {
-                                badge("keeps running")
-                            }
+        VStack(alignment: .leading, spacing: 0) {
+            // ── Main content ───────────────────────────────────────────────
+            VStack(alignment: .leading, spacing: 6) {
+                // Location badge + behaviour flags (runs at login, keeps running, etc.)
+                if showLocationBadge || item.runAtLoad == true || item.keepAlive == true {
+                    HStack(spacing: 5) {
+                        if showLocationBadge {
+                            locationBadge(item.location)
+                        }
+                        if item.location == .configurationProfiles && item.runAtLoad == true {
+                            badge("managed")
+                        } else if item.runAtLoad == true {
+                            badge("runs at login")
+                        } else if item.keepAlive == true {
+                            badge("keeps running")
                         }
                     }
+                }
 
-                    // Filename — allowed to wrap so the full name is always visible
-                    Text(item.filename)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
+                // Filename — allowed to wrap so long names are always fully readable
+                Text(item.filename)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    if showAttribution, let attribution = item.attribution {
-                        HStack(spacing: 4) {
-                            Image(nsImage: NSWorkspace.shared.icon(forFile: attribution.appBundlePath))
-                                .resizable()
-                                .frame(width: 14, height: 14)
-                            Text(attribution.appName)
-                                .font(.system(size: 12, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    if let program = item.programPath {
-                        Text(program)
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(.tertiary)
+                // App icon + name that installed this item — only shown when attribution is known
+                if showAttribution, let attribution = item.attribution {
+                    HStack(spacing: 4) {
+                        AsyncAppIcon(paths: [attribution.appBundlePath], size: 14)
+                        Text(attribution.appName)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .truncationMode(.middle)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(accent != nil
-                    ? Color(nsColor: .controlBackgroundColor).opacity(0.6)
-                    : Color(nsColor: .controlBackgroundColor))
 
-                // ── Action bar ─────────────────────────────────────────────
-                HStack(spacing: 8) {
-                    ActionButton(label: "open", icon: "folder") { revealInFinder() }
-                    // Future actions (quarantine, etc.) will be added here
-                    Spacer()
+                // Binary path — truncated in the middle so the filename stays readable
+                if let program = item.programPath {
+                    Text(program)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity)
-                .background(Color.black.opacity(0.28))
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(accent?.opacity(0.35) ?? Color.white.opacity(0.1))
-                        .frame(height: 0.5)
-                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // ── Action bar ─────────────────────────────────────────────────
+            // Dark footer shelf with quick-action buttons (open in Finder, etc.)
+            HStack(spacing: 8) {
+                ActionButton(label: "open", icon: "folder") { revealInFinder() }
+                Spacer()
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(Color.black.opacity(0.20))
+            .overlay(alignment: .top) {
+                // Hairline separator between content and action bar
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 0.5)
             }
         }
-        .background(accent?.opacity(0.08) ?? Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.6)
-        )
+        .rightPaneCardSurface(cornerRadius: 8)
         .orangeHoverShimmer(cornerRadius: 8, opacity: 0.11)
     }
 
     private func locationBadge(_ location: PersistenceLocation) -> some View {
         let color = location.badgeColor
         return Text(location.shortName)
-            .font(.system(size: 10, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(color)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
@@ -358,7 +424,7 @@ struct ItemRow: View {
 
     private func badge(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(Color.orange)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
@@ -410,7 +476,7 @@ private struct ActionButton: View {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .medium))
                 Text(label)
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .font(.system(size: 11, weight: .medium))
             }
             .foregroundStyle(isHovered ? Color.accentColor : .secondary)
             .padding(.horizontal, 8)
@@ -425,12 +491,59 @@ private struct ActionButton: View {
     }
 }
 
+// MARK: - SnapshotComparePanel
+//
+// Two stacked snapshot rows to the right of the polaroid:
+//
+//   Before   42 items   10:00 AM     ← row 1
+//   After    44 items   10:30 AM     ← row 2
+//
+// Label column is fixed-width so counts and timestamps align vertically.
+
+struct SnapshotComparePanel: View {
+    // The diff whose before/after snapshots are displayed side-by-side
+    let diff: PersistenceDiff
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            snapshotRow("Before", snapshot: diff.before)
+            snapshotRow("After",  snapshot: diff.after)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // "Before   42 items   10:00 AM"
+    // Label is fixed 38pt so counts line up across both rows
+    private func snapshotRow(_ title: String, snapshot: PersistenceSnapshot) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            Text(snapshot.timestamp.formatted(.dateTime.hour().minute()))
+                .font(.system(size: 12))
+                .foregroundStyle(.tertiary)
+                .frame(width: 38, alignment: .leading)
+            
+            Text(title)
+                .font(.system(size: 12))
+                .foregroundStyle(.tertiary)
+                .frame(width: 48, alignment: .leading)
+            
+            Text("\(snapshot.itemCount) items")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Capsule())
+        }
+    }
+
+}
+
 // MARK: - Location badge color
 
 extension PersistenceLocation {
     var badgeColor: Color {
         switch self {
-        case .userLaunchAgents:        return .blue
+        case .userLaunchAgents:        return Color(red: 0.85, green: 0.65, blue: 0.0)
         case .systemLaunchAgents:      return .indigo
         case .systemLaunchDaemons:     return .purple
         case .systemExtensions:        return .teal
@@ -441,3 +554,103 @@ extension PersistenceLocation {
         }
     }
 }
+
+// MARK: - Preview helpers
+
+#if DEBUG
+extension PersistenceItem {
+    static func mock(
+        filename: String = "com.example.agent.plist",
+        location: PersistenceLocation = .userLaunchAgents,
+        label: String? = "com.example.Agent",
+        programPath: String? = "/Library/Application Support/Example/agent",
+        runAtLoad: Bool? = true
+    ) -> PersistenceItem {
+        PersistenceItem(
+            id: UUID(),
+            filename: filename,
+            fullPath: location.resolvedPath + "/" + filename,
+            location: location,
+            modificationDate: Date(),
+            fileSize: 1024,
+            contentsHash: UUID().uuidString,
+            label: label,
+            programPath: programPath,
+            runAtLoad: runAtLoad,
+            keepAlive: nil,
+            attribution: nil
+        )
+    }
+}
+
+extension PersistenceSnapshot {
+    static func mock(items: [PersistenceItem] = [], date: Date = Date()) -> PersistenceSnapshot {
+        PersistenceSnapshot(
+            id: UUID(),
+            timestamp: date,
+            label: "Mock snapshot",
+            items: items,
+            snapshotHash: UUID().uuidString
+        )
+    }
+}
+
+extension PersistenceDiff {
+    static func mock(
+        added: [PersistenceItem] = [],
+        removed: [PersistenceItem] = [],
+        modified: [(before: PersistenceItem, after: PersistenceItem)] = []
+    ) -> PersistenceDiff {
+        let beforeItems = removed + modified.map(\.before)
+        let afterItems  = added  + modified.map(\.after)
+        return PersistenceDiff(
+            id: UUID(),
+            before: .mock(items: beforeItems, date: Date().addingTimeInterval(-300)),
+            after:  .mock(items: afterItems,  date: Date()),
+            added: added,
+            removed: removed,
+            modified: modified
+        )
+    }
+}
+#endif
+
+// MARK: - Component Previews
+
+#Preview("ItemRow — added", traits: .fixedLayout(width: 320, height: 80)) {
+    ItemRow(item: .mock())
+        .padding(12)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("ItemRow — removed", traits: .fixedLayout(width: 320, height: 80)) {
+    ItemRow(item: .mock(filename: "com.old.daemon.plist", location: .systemLaunchDaemons))
+        .padding(12)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("SnapshotComparePanel", traits: .fixedLayout(width: 240, height: 80)) {
+    SnapshotComparePanel(diff: .mock(added: [.mock(), .mock(filename: "com.example.helper.plist")]))
+        .padding(12)
+        .preferredColorScheme(.dark)
+}
+
+// MARK: - Full view previews
+
+#Preview("DiffView — with changes") {
+    DiffView(
+        diff: .mock(
+            added: [.mock(), .mock(filename: "com.example.helper.plist")],
+            removed: [.mock(filename: "com.old.agent.plist", location: .systemLaunchAgents)]
+        )
+    )
+    .frame(width: 380, height: 500)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("DiffView — no changes") {
+    DiffView(diff: .mock())
+        .frame(width: 380, height: 500)
+        .preferredColorScheme(.dark)
+}
+

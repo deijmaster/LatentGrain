@@ -68,9 +68,7 @@ struct ScanView: View {
 
     private func diffContent(_ diff: PersistenceDiff) -> some View {
         VStack(spacing: 0) {
-            DiffView(diff: diff, isRevealed: viewModel.isDiffRevealed) {
-                viewModel.develop()
-            }
+            DiffView(diff: diff)
             .frame(maxHeight: .infinity)
 
             Divider()

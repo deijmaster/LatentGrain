@@ -67,7 +67,8 @@ final class ScanViewModel: ObservableObject {
             let snapshot = try await scanService.takeSnapshot(label: "After")
             afterSnapshot = snapshot
             let diff      = diffService.diff(before: before, after: snapshot)
-            currentDiff   = diff
+            currentDiff     = diff
+            isDiffRevealed  = true
 
             // Persist both snapshots
             storageService.save(snapshot: before)
@@ -88,11 +89,6 @@ final class ScanViewModel: ObservableObject {
         } catch {
             scanError = error.localizedDescription
         }
-    }
-
-    func develop() {
-        isDiffRevealed = true
-        storageService.clearPendingDiffPair()   // diff has been seen — clear the orange dot
     }
 
     func reset() {

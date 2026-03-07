@@ -33,7 +33,7 @@ struct SearchBar: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(Color.black.opacity(0.25))
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             // Suggestion chips — only when there are relevant matches

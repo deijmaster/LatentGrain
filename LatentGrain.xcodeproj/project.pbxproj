@@ -38,6 +38,7 @@
 		C57C1B9A072B411650AE83A5 /* LatentGrainHelper.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = 27A5546B1572A013154FD995 /* LatentGrainHelper.xpc */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C764C5D9E3B8C5C43217E943 /* WatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED38968EC87672B36D734BA /* WatchService.swift */; };
 		D059539A53E31F20AA621FC8 /* SnapshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B9C80EEF434E646A23190B1 /* SnapshotService.swift */; };
+		DB3919B190B172316F4E4DA3 /* AsyncAppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93622C9C22BE194CB22CDC20 /* AsyncAppIcon.swift */; };
 		E1EFFB0B1FE1B917AE6205A8 /* ProfileParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D71C9CCA3D207AACEC30CE7 /* ProfileParser.swift */; };
 		E4A7C117C88346CFDDB03717 /* PolaroidCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4D8BEEDC2372FA024969DF /* PolaroidCardView.swift */; };
 		E90C78AAE26E71A72D2579A9 /* CoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C5131F368039DF5C56F403DF /* CoreServices.framework */; };
@@ -104,6 +105,7 @@
 		74BB931965F1614C4A481897 /* LatentGrainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LatentGrainApp.swift; sourceTree = "<group>"; };
 		754E50CB7EC73CBF1FF969EC /* DiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffView.swift; sourceTree = "<group>"; };
 		7D71C9CCA3D207AACEC30CE7 /* ProfileParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileParser.swift; sourceTree = "<group>"; };
+		93622C9C22BE194CB22CDC20 /* AsyncAppIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncAppIcon.swift; sourceTree = "<group>"; };
 		9B0EDD8F6043C78DE0027932 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		9B6BE0167CC1023C0596F170 /* DiffRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffRecord.swift; sourceTree = "<group>"; };
 		A5B4575866797D080F26F575 /* ScanViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanViewModel.swift; sourceTree = "<group>"; };
@@ -219,6 +221,7 @@
 		70B2D0B81434D30E4A33D401 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				93622C9C22BE194CB22CDC20 /* AsyncAppIcon.swift */,
 				5889A8E920D4E15EBE5D901E /* CardBackground.swift */,
 				3F2D27AAD078806D006049EA /* FileHasher.swift */,
 				F6CD71BCD7D2EC4E7242000A /* PlistParser.swift */,
@@ -428,6 +431,7 @@
 			files = (
 				5C63900A742888954AEC5C8A /* AppAttribution.swift in Sources */,
 				5A31F2D7135A567539F68E93 /* AppDelegate.swift in Sources */,
+				DB3919B190B172316F4E4DA3 /* AsyncAppIcon.swift in Sources */,
 				EF9751DEE9FAEFF16E5A6CD8 /* AttributionService.swift in Sources */,
 				0395EC3713905C30F2B43E5E /* CardBackground.swift in Sources */,
 				F5847B8108060D912E1AE9F4 /* DiffDetailView.swift in Sources */,

@@ -240,6 +240,45 @@ final class StorageService: ObservableObject {
         write(persistenceActions, to: actionRecordsURL)
     }
 
+    #if DEBUG
+    /// Pre-populated instance for Xcode Previews — no real filesystem data needed.
+    static var preview: StorageService {
+        let s = StorageService()
+        let ids = (0..<6).map { _ in (UUID(), UUID()) }
+        let locations: [[String]] = [
+            [PersistenceLocation.userLaunchAgents.rawValue],
+            [PersistenceLocation.systemLaunchAgents.rawValue, PersistenceLocation.systemLaunchDaemons.rawValue],
+            [],
+            [PersistenceLocation.systemExtensions.rawValue],
+            [PersistenceLocation.userLaunchAgents.rawValue],
+            [PersistenceLocation.backgroundTaskMgmt.rawValue],
+        ]
+        let mocks: [(Int, Int, Int, String)] = [
+            (2, 0, 0, "Manual"),
+            (1, 1, 0, "Auto"),
+            (0, 0, 0, "Manual"),
+            (3, 0, 1, "Auto"),
+            (0, 1, 0, "Manual"),
+            (1, 0, 0, "Auto"),
+        ]
+        for (i, (bID, aID)) in ids.enumerated() {
+            let (added, removed, modified, source) = mocks[i]
+            s.saveDiffRecord(DiffRecord(
+                id: UUID(),
+                beforeSnapshotID: bID,
+                afterSnapshotID: aID,
+                timestamp: Date().addingTimeInterval(-Double(i) * 3600 * 6),
+                addedCount: added,
+                removedCount: removed,
+                modifiedCount: modified,
+                source: source,
+                affectedLocations: locations[i]
+            ))
+        }
+        return s
+    }
+    #endif
+
     private func write<T: Encodable>(_ value: T, to url: URL) {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
