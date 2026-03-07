@@ -69,6 +69,7 @@ struct DiffDetailView: View {
 
 // MARK: - Previews
 
+#if DEBUG
 // "Loaded" state: DiffDetailView relies on StorageService.snapshotPair(for:) which
 // requires real snapshot data on disk — not available in previews. We render DiffView
 // directly here to show exactly what DiffDetailView displays once loading completes.
@@ -101,3 +102,5 @@ struct DiffDetailView: View {
     )
     .preferredColorScheme(.dark)
 }
+
+#endif

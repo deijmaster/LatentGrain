@@ -1977,6 +1977,7 @@ struct ItemDetailCard: View {
 
 // MARK: - Component Previews
 
+#if DEBUG
 #Preview("Item Detail Card", traits: .fixedLayout(width: 480, height: 160)) {
     ItemDetailCard(
         item: .mock(
@@ -2055,3 +2056,4 @@ struct ItemDetailCard: View {
         .frame(width: 1140, height: 740)
         .preferredColorScheme(.dark)
 }
+#endif

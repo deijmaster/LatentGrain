@@ -617,6 +617,7 @@ extension PersistenceDiff {
 
 // MARK: - Component Previews
 
+#if DEBUG
 #Preview("ItemRow — added", traits: .fixedLayout(width: 320, height: 80)) {
     ItemRow(item: .mock())
         .padding(12)
@@ -653,4 +654,4 @@ extension PersistenceDiff {
         .frame(width: 380, height: 500)
         .preferredColorScheme(.dark)
 }
-
+#endif
