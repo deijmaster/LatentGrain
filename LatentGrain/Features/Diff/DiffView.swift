@@ -99,77 +99,58 @@ struct DiffView: View {
         }
     }
 
-    // Header row: 54×60pt polaroid on the left (tilted −3°), stats flush to the right edge.
-    // Polaroid on the left (like an app icon), title + stat mini-cards on the right.
+    // Header row: BEFORE stats on the left, polaroid in the centre, AFTER stats on the right.
     private var polaroid: some View {
-        HStack(alignment: .top, spacing: 14) {
-            PolaroidCardView()
+        VStack(spacing: 10) {
+            HStack(alignment: .center, spacing: 0) {
+                statColumn(
+                    label: "BEFORE",
+                    value: diff.before.timestamp.formatted(.dateTime.hour().minute()),
+                    detail: "\(diff.before.itemCount) items"
+                )
+                .frame(maxWidth: .infinity)
 
-            VStack(alignment: .leading, spacing: 4) {
-                // Mini stat columns — App Store style with gradient dividers
-                HStack(alignment: .top, spacing: 0) {
-                    statColumn(
-                        label: "BEFORE",
-                        value: diff.before.timestamp.formatted(.dateTime.hour().minute()),
-                        detail: "\(diff.before.itemCount) items"
-                    )
-                    gradientDivider
-                    statColumn(
-                        label: "AFTER",
-                        value: diff.after.timestamp.formatted(.dateTime.hour().minute()),
-                        detail: "\(diff.after.itemCount) items"
-                    )
-                }
+                PolaroidCardView()
+                    .padding(.horizontal, 14)
 
-                if diff.isEmpty {
-                    Text("no changes found")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.green.opacity(0.8))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 3)
-                        .background(Color.green.opacity(0.09))
-                        .overlay(Capsule().strokeBorder(Color.green.opacity(0.2), lineWidth: 1))
-                        .clipShape(Capsule())
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 10)
-                } else {
-                    let total = diff.added.count + diff.removed.count + diff.modified.count
-                    Text("\(total) finding\(total == 1 ? "" : "s")")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.accentColor.opacity(0.9))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 3)
-                        .background(Color.accentColor.opacity(0.09))
-                        .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.4), lineWidth: 1))
-                        .clipShape(Capsule())
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 10)
-                }
+                statColumn(
+                    label: "AFTER",
+                    value: diff.after.timestamp.formatted(.dateTime.hour().minute()),
+                    detail: "\(diff.after.itemCount) items"
+                )
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if diff.isEmpty {
+                Text("no changes found")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.green.opacity(0.8))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Color.green.opacity(0.09))
+                    .overlay(Capsule().strokeBorder(Color.green.opacity(0.2), lineWidth: 1))
+                    .clipShape(Capsule())
+            } else {
+                let total = diff.added.count + diff.removed.count + diff.modified.count
+                Text("\(total) finding\(total == 1 ? "" : "s")")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.accentColor.opacity(0.9))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Color.accentColor.opacity(0.09))
+                    .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.4), lineWidth: 1))
+                    .clipShape(Capsule())
+            }
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 8)
-    }
-
-    private var gradientDivider: some View {
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    colors: [.clear, Color.white.opacity(0.15), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: 1, height: 28)
-            .padding(.horizontal, 6)
     }
 
     private func statColumn(label: String, value: String, detail: String?, valueColor: Color = .secondary, detailColor: Color = .secondary) -> some View {
         VStack(alignment: .center, spacing: 2) {
             Text(label)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.white.opacity(0.72))
                 .kerning(0.5)
                 .textCase(.uppercase)
 
@@ -213,7 +194,7 @@ struct DiffView: View {
                         .padding(.bottom, 40)
                     }
 
-                    // Fade hint — tells the user there's more to scroll
+                    // Bottom fade — more content below hint
                     LinearGradient(
                         colors: [.clear, Color(nsColor: .windowBackgroundColor)],
                         startPoint: .top,
@@ -222,6 +203,14 @@ struct DiffView: View {
                     .frame(height: 40)
                     .allowsHitTesting(false)
                 }
+                .mask(
+                    VStack(spacing: 0) {
+                        // Top: cards dissolve near search bar
+                        LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 32)
+                        Rectangle()
+                    }
+                )
         }
     }
 
