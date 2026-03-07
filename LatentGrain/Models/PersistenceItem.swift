@@ -73,6 +73,21 @@ enum PersistenceLocation: String, Codable, CaseIterable, Hashable {
         return resolvedPath
     }
 
+    /// Short descriptor for what an item at this location *is* — used as a fallback pill
+    /// on cards that have no behavioural flags (runAtLoad / keepAlive).
+    var typeLabel: String {
+        switch self {
+        case .userLaunchAgents:      return "agent"
+        case .systemLaunchAgents:    return "agent"
+        case .systemLaunchDaemons:   return "daemon"
+        case .systemExtensions:      return "extension"
+        case .backgroundTaskMgmt:    return "bg task"
+        case .configurationProfiles: return "profile"
+        case .userTCC:               return "tcc entry"
+        case .systemTCC:             return "tcc entry"
+        }
+    }
+
     /// Whether reading this location requires elevation / Full Disk Access.
     /// Note: /Library/LaunchDaemons is world-readable (755) — no elevation needed to scan it.
     /// BTM and ConfigurationProfiles FSEvents require Full Disk Access.

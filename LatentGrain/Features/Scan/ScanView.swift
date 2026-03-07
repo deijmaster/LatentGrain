@@ -71,8 +71,6 @@ struct ScanView: View {
             DiffView(diff: diff)
             .frame(maxHeight: .infinity)
 
-            Divider()
-
             HStack {
                 Spacer()
                 Button(action: { viewModel.reset() }) {

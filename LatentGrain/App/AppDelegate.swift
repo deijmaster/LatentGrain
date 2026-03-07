@@ -208,8 +208,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         guard let button = statusItem?.button, let pop = popover else { return }
         if !pop.isShown {
-            pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             activateApp()
+            pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
         updateStatusIcon()
     }

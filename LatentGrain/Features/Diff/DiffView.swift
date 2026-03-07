@@ -145,7 +145,7 @@ struct DiffView: View {
 
     // Header row: BEFORE stats on the left, polaroid in the centre, AFTER stats on the right.
     private var polaroid: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 18) {
             HStack(alignment: .center, spacing: 0) {
                 statColumn(
                     label: "BEFORE",
@@ -214,40 +214,106 @@ struct DiffView: View {
     @ViewBuilder
     private var resultsArea: some View {
         VStack(spacing: 0) {
-                SearchBar(
-                    text: $searchText,
-                    placeholder: "Search...",
-                    suggestions: suggestions
-                )
-                .padding(.horizontal, 22)
-                .padding(.top, diff.isEmpty ? 0 : 8)
+            SearchBar(
+                text: $searchText,
+                placeholder: "Search...",
+                suggestions: suggestions
+            )
+            .padding(.horizontal, 22)
+            .padding(.top, diff.isEmpty ? 0 : 2)
 
+            ZStack(alignment: .bottom) {
+                ScrollView(.vertical, showsIndicators: true) {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
 
-                ZStack(alignment: .bottom) {
-                    ScrollView(.vertical, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 20) {
-                            // Only rendered when there are actual changes to report
-                            if !diff.isEmpty {
-                                changesSection
-                            }
-
-                            // Full after-snapshot inventory, grouped by location
-                            allItemsSection
+                        // Findings (added / removed / changed) — no sticky header needed
+                        if !diff.isEmpty {
+                            changesSection
+                                .padding(.horizontal, 22)
+                                .padding(.top, 32)
+                                .padding(.bottom, 12)
                         }
-                        .padding(22)
-                        .padding(.bottom, 40)
-                    }
 
-                }
-                .mask(
-                    VStack(spacing: 0) {
-                        LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                            .frame(height: 32)
-                        Rectangle()
-                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                            .frame(height: 40)
+                        // "All Items" label
+                        let allFiltered = diff.after.items.filter(matches)
+                        if diff.after.itemCount > 0 {
+                            Text(searchText.isEmpty
+                                 ? "All Items (\(diff.after.itemCount))"
+                                 : "Results (\(allFiltered.count))")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 22)
+                                .padding(.top, diff.isEmpty ? 22 : 4)
+                                .padding(.bottom, 8)
+                        }
+
+                        // One sticky Section per source family
+                        ForEach(
+                            diff.after.groupedByLocation.sorted(by: { $0.key.rawValue < $1.key.rawValue }),
+                            id: \.key.rawValue
+                        ) { location, items in
+                            let filtered = items.filter(matches)
+                            if !filtered.isEmpty {
+                                Section {
+                                    VStack(alignment: .leading, spacing: 14) {
+                                        ForEach(filtered) { item in
+                                            ItemRow(item: item, showLocationBadge: false)
+                                                .environment(\.timelineAction, {
+                                                    let loc = location.rawValue
+                                                    NotificationCenter.default.post(name: .openTimelineWindow, object: nil)
+                                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                                        NotificationCenter.default.post(
+                                                            name: .selectTimelineSource,
+                                                            object: nil,
+                                                            userInfo: ["location": loc]
+                                                        )
+                                                    }
+                                                })
+                                        }
+                                    }
+                                    .padding(.horizontal, 22)
+                                    .padding(.top, 10)
+                                    .padding(.bottom, 24)
+                                } header: {
+                                    HStack(spacing: 8) {
+                                        RoundedRectangle(cornerRadius: 1)
+                                            .fill(location.badgeColor)
+                                            .frame(width: 2, height: 14)
+                                        Text(location.displayName)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(location.badgeColor.opacity(0.65))
+                                            .fixedSize()
+                                        Rectangle()
+                                            .fill(location.badgeColor.opacity(0.18))
+                                            .frame(height: 0.5)
+                                            .frame(maxWidth: .infinity)
+                                        Text("\(filtered.count)")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundStyle(location.badgeColor.opacity(0.7))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(location.badgeColor.opacity(0.10))
+                                            .clipShape(Capsule())
+                                    }
+                                    .padding(.horizontal, 22)
+                                    .padding(.top, 18)
+                                    .padding(.bottom, 8)
+                                }
+                            }
+                        }
                     }
-                )
+                    .padding(.bottom, 40)
+                }
+            }
+            .mask(
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 32)
+                    Rectangle()
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 40)
+                }
+            )
         }
     }
 
@@ -289,63 +355,6 @@ struct DiffView: View {
         }
     }
 
-    // MARK: - All items section
-
-    // Complete after-snapshot inventory grouped by persistence location;
-    // doubles as the search results list when a query is active
-    private var allItemsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-
-            // Header switches between a total count and a filtered results count
-            let allFiltered = diff.after.items.filter(matches)
-            HStack {
-                if diff.after.itemCount > 0 {
-                    Text(searchText.isEmpty
-                         ? "All Items (\(diff.after.itemCount))"
-                         : "Results (\(allFiltered.count))")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
-
-            }
-
-            // One sub-group per location — only rendered if it has matching items
-            ForEach(
-                diff.after.groupedByLocation.sorted(by: { $0.key.rawValue < $1.key.rawValue }),
-                id: \.key.rawValue
-            ) { location, items in
-                let filtered = items.filter(matches)
-                if !filtered.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        // Location label — tertiary so it doesn't compete with filenames
-                        Text(location.displayName.uppercased())
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                            .kerning(0.5)
-
-                        VStack(alignment: .leading, spacing: 14) {
-                            ForEach(filtered) { item in
-                                // Badge hidden because the location header already provides context.
-                                // Override timelineAction to navigate to the Sources tab for this location.
-                                ItemRow(item: item, showLocationBadge: false)
-                                    .environment(\.timelineAction, {
-                                        let loc = location.rawValue
-                                        NotificationCenter.default.post(name: .openTimelineWindow, object: nil)
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                                            NotificationCenter.default.post(
-                                                name: .selectTimelineSource,
-                                                object: nil,
-                                                userInfo: ["location": loc]
-                                            )
-                                        }
-                                    })
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 // MARK: - ItemRow
@@ -380,19 +389,19 @@ struct ItemRow: View {
         VStack(alignment: .leading, spacing: 0) {
             // ── Main content ───────────────────────────────────────────────
             VStack(alignment: .leading, spacing: 6) {
-                // Location badge + behaviour flags (runs at login, keeps running, etc.)
-                if showLocationBadge || item.runAtLoad == true || item.keepAlive == true {
-                    HStack(spacing: 5) {
-                        if showLocationBadge {
-                            locationBadge(item.location)
-                        }
-                        if item.location == .configurationProfiles && item.runAtLoad == true {
-                            badge("managed")
-                        } else if item.runAtLoad == true {
-                            badge("runs at login")
-                        } else if item.keepAlive == true {
-                            badge("keeps running")
-                        }
+                // Type pill always shown; behavioural flags are additive alongside it.
+                HStack(spacing: 5) {
+                    if showLocationBadge {
+                        locationBadge(item.location)
+                    } else {
+                        typeBadge(item.location)
+                    }
+                    if item.location == .configurationProfiles && item.runAtLoad == true {
+                        badge("managed")
+                    } else if item.runAtLoad == true {
+                        badge("runs at login")
+                    } else if item.keepAlive == true {
+                        badge("keeps running")
                     }
                 }
 
@@ -465,12 +474,26 @@ struct ItemRow: View {
     private func badge(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(Color.orange)
+            .foregroundStyle(Color.orange.opacity(0.6))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(Color.orange.opacity(0.1))
+            .background(Color.orange.opacity(0.07))
             .overlay(
-                Capsule().strokeBorder(Color.orange.opacity(0.4), lineWidth: 1)
+                Capsule().strokeBorder(Color.orange.opacity(0.2), lineWidth: 1)
+            )
+            .clipShape(Capsule())
+    }
+
+    private func typeBadge(_ location: PersistenceLocation) -> some View {
+        let color = location.badgeColor
+        return Text(location.typeLabel)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(color.opacity(0.7))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.07))
+            .overlay(
+                Capsule().strokeBorder(color.opacity(0.2), lineWidth: 1)
             )
             .clipShape(Capsule())
     }
