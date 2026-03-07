@@ -55,6 +55,17 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Section offset tracking
+
+/// Collects each source section's minY relative to the scroll container,
+/// used to determine which section is currently in view.
+private struct SectionOffsetKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
 // MARK: - DiffView
 
 struct DiffView: View {
@@ -68,6 +79,8 @@ struct DiffView: View {
 
     // Current text in the search bar; filters items in the revealed results list
     @State private var searchText = ""
+    // Raw value of the source section currently visible in the scroll area
+    @State private var currentSourceID: String? = nil
 
     private func matches(_ item: PersistenceItem) -> Bool {
         guard !searchText.isEmpty else { return true }
@@ -114,6 +127,17 @@ struct DiffView: View {
                 .sorted()
                 .prefix(8)
         )
+    }
+
+    /// Source sections that have at least one item matching the current search.
+    /// Pre-filtered so both the scroll list and the index strip share the same set.
+    private var visibleLocations: [(location: PersistenceLocation, items: [PersistenceItem])] {
+        diff.after.groupedByLocation
+            .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+            .compactMap { location, items in
+                let filtered = items.filter(matches)
+                return filtered.isEmpty ? nil : (location, filtered)
+            }
     }
 
     var body: some View {
@@ -223,86 +247,132 @@ struct DiffView: View {
             .padding(.top, diff.isEmpty ? 0 : 2)
 
             ZStack(alignment: .bottom) {
-                ScrollView(.vertical, showsIndicators: true) {
-                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                ScrollViewReader { proxy in
+                    ZStack(alignment: .trailing) {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            LazyVStack(alignment: .leading, spacing: 0) {
 
-                        // Findings (added / removed / changed) — no sticky header needed
-                        if !diff.isEmpty {
-                            changesSection
-                                .padding(.horizontal, 22)
-                                .padding(.top, 32)
-                                .padding(.bottom, 12)
-                        }
+                                // Findings (added / removed / changed)
+                                if !diff.isEmpty {
+                                    changesSection
+                                        .padding(.horizontal, 22)
+                                        .padding(.top, 32)
+                                        .padding(.bottom, 12)
+                                }
 
-                        // "All Items" label
-                        let allFiltered = diff.after.items.filter(matches)
-                        if diff.after.itemCount > 0 {
-                            Text(searchText.isEmpty
-                                 ? "All Items (\(diff.after.itemCount))"
-                                 : "Results (\(allFiltered.count))")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 22)
-                                .padding(.top, diff.isEmpty ? 22 : 4)
-                                .padding(.bottom, 8)
-                        }
+                                // "All Items" label
+                                let allFiltered = diff.after.items.filter(matches)
+                                if diff.after.itemCount > 0 {
+                                    Text(searchText.isEmpty
+                                         ? "All Items (\(diff.after.itemCount))"
+                                         : "Results (\(allFiltered.count))")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 22)
+                                        .padding(.top, diff.isEmpty ? 22 : 4)
+                                        .padding(.bottom, 8)
+                                }
 
-                        // One sticky Section per source family
-                        ForEach(
-                            diff.after.groupedByLocation.sorted(by: { $0.key.rawValue < $1.key.rawValue }),
-                            id: \.key.rawValue
-                        ) { location, items in
-                            let filtered = items.filter(matches)
-                            if !filtered.isEmpty {
-                                Section {
-                                    VStack(alignment: .leading, spacing: 14) {
-                                        ForEach(filtered) { item in
-                                            ItemRow(item: item, showLocationBadge: false)
-                                                .environment(\.timelineAction, {
-                                                    let loc = location.rawValue
-                                                    NotificationCenter.default.post(name: .openTimelineWindow, object: nil)
-                                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                                                        NotificationCenter.default.post(
-                                                            name: .selectTimelineSource,
-                                                            object: nil,
-                                                            userInfo: ["location": loc]
-                                                        )
-                                                    }
-                                                })
+                                // One group per source — headers are inline (not sticky)
+                                ForEach(visibleLocations, id: \.location.rawValue) { entry in
+                                    VStack(alignment: .leading, spacing: 0) {
+
+                                        // Invisible anchor for scroll-to + position tracking
+                                        Color.clear.frame(height: 0)
+                                            .id(entry.location.rawValue)
+                                            .background(
+                                                GeometryReader { geo in
+                                                    Color.clear.preference(
+                                                        key: SectionOffsetKey.self,
+                                                        value: [entry.location.rawValue: geo.frame(in: .named("diffScroll")).minY]
+                                                    )
+                                                }
+                                            )
+
+                                        // Inline source header
+                                        HStack(spacing: 8) {
+                                            RoundedRectangle(cornerRadius: 1)
+                                                .fill(entry.location.badgeColor)
+                                                .frame(width: 2, height: 14)
+                                            Text(entry.location.displayName)
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundStyle(entry.location.badgeColor.opacity(0.65))
+                                                .fixedSize()
+                                            Rectangle()
+                                                .fill(entry.location.badgeColor.opacity(0.18))
+                                                .frame(height: 0.5)
+                                                .frame(maxWidth: .infinity)
+                                            Text("\(entry.items.count)")
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundStyle(entry.location.badgeColor.opacity(0.7))
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(entry.location.badgeColor.opacity(0.10))
+                                                .clipShape(Capsule())
                                         }
+                                        .padding(.horizontal, 22)
+                                        .padding(.top, 18)
+                                        .padding(.bottom, 8)
+
+                                        // Items
+                                        VStack(alignment: .leading, spacing: 14) {
+                                            ForEach(entry.items) { item in
+                                                ItemRow(item: item, showLocationBadge: false)
+                                                    .environment(\.timelineAction, {
+                                                        let loc = entry.location.rawValue
+                                                        NotificationCenter.default.post(name: .openTimelineWindow, object: nil)
+                                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                                            NotificationCenter.default.post(
+                                                                name: .selectTimelineSource,
+                                                                object: nil,
+                                                                userInfo: ["location": loc]
+                                                            )
+                                                        }
+                                                    })
+                                            }
+                                        }
+                                        .padding(.horizontal, 22)
+                                        .padding(.top, 2)
+                                        .padding(.bottom, 24)
                                     }
-                                    .padding(.horizontal, 22)
-                                    .padding(.top, 10)
-                                    .padding(.bottom, 24)
-                                } header: {
-                                    HStack(spacing: 8) {
-                                        RoundedRectangle(cornerRadius: 1)
-                                            .fill(location.badgeColor)
-                                            .frame(width: 2, height: 14)
-                                        Text(location.displayName)
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundStyle(location.badgeColor.opacity(0.65))
-                                            .fixedSize()
-                                        Rectangle()
-                                            .fill(location.badgeColor.opacity(0.18))
-                                            .frame(height: 0.5)
-                                            .frame(maxWidth: .infinity)
-                                        Text("\(filtered.count)")
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundStyle(location.badgeColor.opacity(0.7))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(location.badgeColor.opacity(0.10))
-                                            .clipShape(Capsule())
-                                    }
-                                    .padding(.horizontal, 22)
-                                    .padding(.top, 18)
-                                    .padding(.bottom, 8)
                                 }
                             }
+                            // Extra space so the last section can always scroll its header to the top
+                            Color.clear.frame(height: 320)
                         }
+                        .coordinateSpace(name: "diffScroll")
+                        .onPreferenceChange(SectionOffsetKey.self) { offsets in
+                            // Current section = the one whose header is nearest the top from above
+                            let threshold: CGFloat = 60
+                            if let hit = offsets.filter({ $0.value <= threshold }).max(by: { $0.value < $1.value }) {
+                                currentSourceID = hit.key
+                            } else {
+                                // Haven't scrolled into any section yet — highlight the first
+                                currentSourceID = offsets.min(by: { $0.value < $1.value })?.key
+                            }
+                        }
+
+                        // Source index strip — coloured dots, one per visible source
+                        VStack(spacing: 7) {
+                            ForEach(visibleLocations, id: \.location.rawValue) { entry in
+                                let isActive = currentSourceID == entry.location.rawValue
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.25)) {
+                                        proxy.scrollTo(entry.location.rawValue, anchor: .top)
+                                    }
+                                } label: {
+                                    Circle()
+                                        .fill(entry.location.badgeColor.opacity(isActive ? 0.85 : 0.18))
+                                        .frame(width: isActive ? 7 : 5, height: isActive ? 7 : 5)
+                                        .animation(.easeInOut(duration: 0.18), value: isActive)
+                                }
+                                .buttonStyle(.plain)
+                                .focusable(false)
+                            }
+                        }
+                        .padding(.trailing, 8)
+                        .frame(maxHeight: .infinity)
                     }
-                    .padding(.bottom, 40)
                 }
             }
             .mask(
