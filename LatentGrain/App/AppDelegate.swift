@@ -43,6 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         setupFocusObserver()
         setupIconObservers()
+        NotificationCenter.default.addObserver(forName: .openTimelineWindow, object: nil, queue: .main) { [weak self] _ in
+            self?.showTimelineWindow()
+        }
         UNUserNotificationCenter.current().delegate = self
 
         if !UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") {
@@ -301,8 +304,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func showTimelineWindow() {
         if let existing = timelineWindow {
-            existing.orderFrontRegardless()
             activateApp()
+            existing.makeKeyAndOrderFront(nil)
             return
         }
 
@@ -348,8 +351,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         timelineWindow = win
         DispatchQueue.main.async {
-            win.orderFrontRegardless()
             self.activateApp()
+            win.makeKeyAndOrderFront(nil)
         }
     }
 

@@ -27,12 +27,44 @@ import AppKit
 //   └─────────────────────────────────────────┘
 //                                40pt fade overlay at bottom edge
 
+// MARK: - Timeline deep-link notification
+
+extension Notification.Name {
+    /// Posted to ask AppDelegate to open (or front) the timeline window.
+    static let openTimelineWindow = Notification.Name("LatentGrain.openTimelineWindow")
+    /// Posted when the diff view wants the timeline to select a specific record.
+    /// userInfo key: "recordID" → UUID
+    static let selectTimelineRecord = Notification.Name("LatentGrain.selectTimelineRecord")
+    /// Posted when the diff view wants the timeline to switch to the Sources tab.
+    /// userInfo key: "location" → PersistenceLocation.rawValue (String)
+    static let selectTimelineSource = Notification.Name("LatentGrain.selectTimelineSource")
+}
+
+// MARK: - Environment key for timeline action
+
+private struct TimelineActionKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {
+        NotificationCenter.default.post(name: .openTimelineWindow, object: nil)
+    }
+}
+
+extension EnvironmentValues {
+    fileprivate var timelineAction: () -> Void {
+        get { self[TimelineActionKey.self] }
+        set { self[TimelineActionKey.self] = newValue }
+    }
+}
+
+// MARK: - DiffView
+
 struct DiffView: View {
 
     // The result of comparing two snapshots — drives all displayed content
     let diff: PersistenceDiff
     // Set to false in contexts (e.g. Timeline) that supply their own header
     var showPolaroids: Bool = true
+    // When set, the "timeline" button on each item card deep-links to this record
+    var timelineRecordID: UUID? = nil
 
     // Current text in the search bar; filters items in the revealed results list
     @State private var searchText = ""
@@ -97,6 +129,18 @@ struct DiffView: View {
             resultsArea
                 .frame(maxHeight: .infinity)
         }
+        .environment(\.timelineAction, {
+            NotificationCenter.default.post(name: .openTimelineWindow, object: nil)
+            if let id = timelineRecordID {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    NotificationCenter.default.post(
+                        name: .selectTimelineRecord,
+                        object: nil,
+                        userInfo: ["recordID": id]
+                    )
+                }
+            }
+        })
     }
 
     // Header row: BEFORE stats on the left, polaroid in the centre, AFTER stats on the right.
@@ -194,21 +238,14 @@ struct DiffView: View {
                         .padding(.bottom, 40)
                     }
 
-                    // Bottom fade — more content below hint
-                    LinearGradient(
-                        colors: [.clear, Color(nsColor: .windowBackgroundColor)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 40)
-                    .allowsHitTesting(false)
                 }
                 .mask(
                     VStack(spacing: 0) {
-                        // Top: cards dissolve near search bar
                         LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
                             .frame(height: 32)
                         Rectangle()
+                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                            .frame(height: 40)
                     }
                 )
         }
@@ -288,8 +325,20 @@ struct DiffView: View {
 
                         VStack(alignment: .leading, spacing: 14) {
                             ForEach(filtered) { item in
-                                // Badge hidden because the location header already provides context
+                                // Badge hidden because the location header already provides context.
+                                // Override timelineAction to navigate to the Sources tab for this location.
                                 ItemRow(item: item, showLocationBadge: false)
+                                    .environment(\.timelineAction, {
+                                        let loc = location.rawValue
+                                        NotificationCenter.default.post(name: .openTimelineWindow, object: nil)
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                            NotificationCenter.default.post(
+                                                name: .selectTimelineSource,
+                                                object: nil,
+                                                userInfo: ["location": loc]
+                                            )
+                                        }
+                                    })
                             }
                         }
                     }
@@ -324,6 +373,7 @@ struct ItemRow: View {
 
     // Toggled in Settings — shows the attributed app icon and name below the filename
     @AppStorage("showAttribution") private var showAttribution = true
+    @Environment(\.timelineAction) private var timelineAction
 
 
     var body: some View {
@@ -379,8 +429,9 @@ struct ItemRow: View {
             // ── Action bar ─────────────────────────────────────────────────
             // Dark footer shelf with quick-action buttons (open in Finder, etc.)
             HStack(spacing: 8) {
-                ActionButton(label: "open", icon: "folder") { revealInFinder() }
                 Spacer()
+                ActionButton(label: "timeline", icon: "waveform.path.ecg", action: timelineAction)
+                ActionButton(label: "open", icon: "folder") { revealInFinder() }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)

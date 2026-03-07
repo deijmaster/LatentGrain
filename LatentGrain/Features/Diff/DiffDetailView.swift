@@ -33,7 +33,7 @@ struct DiffDetailView: View {
             if let diff {
                 // Always revealed — user is reviewing history, not discovering for the first time.
                 // showPolaroids: false because the Timeline header already provides context.
-                DiffView(diff: diff, showPolaroids: false)
+                DiffView(diff: diff, showPolaroids: false, timelineRecordID: record.id)
                     .frame(maxHeight: .infinity)
             } else if isLoading {
                 // Centred spinner — shown while snapshots are fetched and diffed

@@ -126,6 +126,21 @@ struct TimelineView: View {
         .onAppear {
             if selectedRecordID == nil { selectedRecordID = records.first?.id }
         }
+        // Deep-link from diff view — select the matching record in the Timeline tab
+        .onReceive(NotificationCenter.default.publisher(for: .selectTimelineRecord)) { note in
+            if let id = note.userInfo?["recordID"] as? UUID {
+                dashboardTab = .timeline
+                selectedRecordID = id
+            }
+        }
+        // Deep-link from diff view — switch to Sources tab and highlight the relevant location
+        .onReceive(NotificationCenter.default.publisher(for: .selectTimelineSource)) { note in
+            if let raw = note.userInfo?["location"] as? String,
+               let location = PersistenceLocation(rawValue: raw) {
+                dashboardTab = .sources
+                selectedSource = location
+            }
+        }
         // Keeps the selection valid if a record gets deleted
         .onChange(of: records.map(\.id)) { _, newIDs in
             if let selectedRecordID, !newIDs.contains(selectedRecordID) {
