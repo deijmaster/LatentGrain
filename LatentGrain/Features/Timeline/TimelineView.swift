@@ -35,6 +35,7 @@ struct TimelineView: View {
     @State private var hasUnseenActions = false
     // Sends disable/quarantine/restore commands to the privileged helper
     private let actionHelperService = HelperService()
+    @AppStorage("useUTCTime") private var useUTCTime = false
 
     // Data for the pop-up alert shown after a restore action
     private struct RestoreNotice: Identifiable {
@@ -397,27 +398,14 @@ struct TimelineView: View {
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle(.secondary)
             // Exact timestamp of the scan
-            Text(record.timestamp.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.colon)))
+            Text(record.timestamp.formatted({
+                var s = Date.FormatStyle().year().month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute()
+                s.timeZone = useUTCTime ? TimeZone(identifier: "UTC")! : .current
+                return s
+            }()))
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.secondary)
             Spacer()
-            // "Selected on timeline" hint shown when the record has findings
-            if !record.isEmpty {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.left")
-                        .font(.system(size: 9, weight: .semibold))
-                    Text("selected on timeline")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(Color.white.opacity(0.04))
-                .overlay(
-                    Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
-                )
-                .clipShape(Capsule())
-            }
         }
         .padding(.horizontal, TimelineTheme.rightPaneHorizontalInset)
         .padding(.vertical, 8)
@@ -619,146 +607,101 @@ struct TimelineView: View {
             // Right column: details for the selected source
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Source title row with a one-line description and Finder button
-                    HStack(spacing: 8) {
-                        // Name of the selected persistence location
-                        Text(selectedSource.displayName)
-                            .font(.system(size: 16, weight: .semibold))
-                        Spacer()
-                        // Short plain-English description of what this location does
-                        Text(selectedSourceReferenceText)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.trailing)
-                            .lineLimit(2)
-                            .frame(maxWidth: 320, alignment: .trailing)
-                        // Opens this folder in Finder
-                        Button {
+                    // Source title — tapping opens the folder in Finder
+                    VStack(alignment: .leading, spacing: 6) {
+                        SourceTitleButton(location: selectedSource) {
                             openPersistenceSource(selectedSource)
-                        } label: {
-                            Image(systemName: "folder")
-                                .font(.system(size: 13, weight: .semibold))
-                                .padding(8)
-                                .background(Color.white.opacity(0.04))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 9)
-                                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6)
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 9))
                         }
-                        .buttonStyle(.plain)
-                        .focusable(false)
-                        .orangeHoverShimmer(cornerRadius: 9, opacity: 0.11)
-                        .help("Open source in Finder")
+                        // Plain-English description of what this location monitors
+                        Text(selectedSourceReferenceText)
+                            .font(.system(size: 13, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    // Card showing path, watch path, type, and access level for this source
+                    // Path, type, and access details for this source
                     VStack(alignment: .leading, spacing: 10) {
                         sourceInfoRow("path", value: selectedSource.resolvedPath)
-                        sourceInfoRow("watch path", value: selectedSource.watchPath)
+                        // Watch path only differs for single-file sources (points to parent dir)
+                        if selectedSource.isSingleFile {
+                            sourceInfoRow("watch path", value: selectedSource.watchPath)
+                        }
                         sourceInfoRow("type", value: selectedSource.isSingleFile ? "single file source" : "directory source")
                         sourceInfoRow("access", value: selectedSource.requiresElevation ? "restricted / elevated" : "readable")
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
+                    .padding(.bottom, 4)
 
-                    // List of files currently found in this location from the latest snapshot
+                    // Recent Events section — title + count always, events if any
+                    let relatedEvents = records.filter { $0.affectedLocations.contains(selectedSource.rawValue) }
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 6) {
-                            Text("Current Items")
+                            Text("\(min(relatedEvents.count, 6))")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                            // Time the snapshot was taken
-                            if let latestSnapshot = storageService.snapshots.last {
-                                Text(latestSnapshot.timestamp.formatted(.dateTime.hour().minute()))
-                                    .font(.system(size: 10, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
-                            }
-                            Spacer()
-                            Text("\(currentSourceItems.count)")
-                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if currentSourceItems.isEmpty {
-                            Text("No items currently captured for this source in the latest snapshot.")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
-                        } else {
-                            ForEach(currentSourceItems.prefix(80), id: \.id) { item in
-                                HStack(spacing: 8) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(item.filename)
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                        Text(item.fullPath)
-                                            .font(.system(size: 11, design: .monospaced))
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                            .truncationMode(.middle)
-                                    }
-                                    Spacer(minLength: 0)
-                                    SourceFolderButton(filePath: item.fullPath)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
-                                .orangeHoverShimmer(cornerRadius: 10, opacity: 0.11)
-                            }
-                        }
-                    }
-
-                    // Only show events that touched this source
-                    let relatedEvents = records.filter { $0.affectedLocations.contains(selectedSource.rawValue) }
-
-                    if relatedEvents.isEmpty {
-                        Text("No timeline events mapped to this source yet.")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
-                    } else {
-                        // List of past scans that recorded a change in this location
-                        VStack(alignment: .leading, spacing: 8) {
                             Text("Recent Events")
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(.secondary)
-
-                            ForEach(Array(relatedEvents.prefix(6)), id: \.id) { record in
-                                let isSelected = selectedRecordID == record.id
-                                // Tapping jumps to that event in the Timeline tab
-                                Button {
-                                    selectedRecordID = record.id
-                                    dashboardTab = .timeline
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        // Timestamp of the event
-                                        Text(record.timestamp.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute()))
-                                            .font(.system(size: 12, design: .monospaced))
-                                            .foregroundStyle(.secondary)
-                                        // Quick summary of adds/removes/modifications
-                                        Text("\(record.addedCount)+ \(record.removedCount)- \(record.modifiedCount)~")
-                                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                            .foregroundStyle(.primary)
-                                        Spacer()
-                                        Image(systemName: "arrow.right")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 8)
-                                    .rightPaneCardSurface(selected: isSelected, cornerRadius: TimelineTheme.rightPaneCardCorner)
+                            Spacer()
+                        }
+                        ForEach(Array(relatedEvents.prefix(6)), id: \.id) { record in
+                            let isSelected = selectedRecordID == record.id
+                            Button {
+                                selectedRecordID = record.id
+                                dashboardTab = .timeline
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Text(record.timestamp.formatted(.dateTime.year().month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute()))
+                                        .font(.system(size: 12, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                    Text("\(record.addedCount)+ \(record.removedCount)- \(record.modifiedCount)~")
+                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    Image(systemName: "arrow.right")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(.secondary)
                                 }
-                                .buttonStyle(.plain)
-                                .focusable(false)
-                                .orangeHoverShimmer(cornerRadius: TimelineTheme.rightPaneCardCorner, opacity: 0.11)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .rightPaneCardSurface(selected: isSelected, cornerRadius: TimelineTheme.rightPaneCardCorner)
                             }
+                            .buttonStyle(.plain)
+                            .focusable(false)
+                            .orangeHoverShimmer(cornerRadius: TimelineTheme.rightPaneCardCorner, opacity: 0.11)
+                        }
+                    }
+
+                    // Current Items section — title + count always, items if any
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text("\(currentSourceItems.count)")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text("Current Items")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        ForEach(currentSourceItems.prefix(80), id: \.id) { item in
+                            HStack(spacing: 8) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(item.filename)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
+                                    Text(item.fullPath)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+                                Spacer(minLength: 0)
+                                SourceFolderButton(filePath: item.fullPath)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .rightPaneCardSurface(cornerRadius: TimelineTheme.rightPaneCardCorner)
+                            .orangeHoverShimmer(cornerRadius: 10, opacity: 0.11)
                         }
                     }
                 }
@@ -896,21 +839,21 @@ struct TimelineView: View {
     private var selectedSourceReferenceText: String {
         switch selectedSource {
         case .userLaunchAgents:
-            return "Per-user login agents loaded for the current user session."
+            return "Runs programs automatically each time you log in. A common target for adware and malware — anything dropped here gains persistent execution under your account without asking for a password."
         case .systemLaunchAgents:
-            return "System-wide agents that run in user login contexts."
+            return "Like user launch agents, but active for every user on the machine. Changes here require admin access, so unexpected additions are a strong signal that something elevated was run."
         case .systemLaunchDaemons:
-            return "System daemons that run in the background at the OS level."
+            return "Background services that start at boot and run as root, before any user logs in. High-value for attackers: a daemon here survives reboots and operates with full system privileges."
         case .systemExtensions:
-            return "Installed system extensions that add low-level runtime components."
+            return "Low-level extensions that run in the kernel or networking stack. They have deep access to your traffic, files, and processes. Legitimate use is limited to security tools and VPNs — anything unexpected warrants close attention."
         case .backgroundTaskMgmt:
-            return "Background task policy database used by macOS task management."
+            return "macOS's internal registry of what is allowed to run in the background. Malware has been known to manipulate this database directly to stay resident while appearing legitimate to the user."
         case .configurationProfiles:
-            return "Managed profiles that enforce security and system configuration."
+            return "Profiles can silently override system settings, redirect DNS, install certificates, or disable security features. They are the primary mechanism used in MDM attacks and enterprise spyware deployment."
         case .userTCC:
-            return "Per-user privacy permissions (TCC) for app capability access."
+            return "Controls which apps can access your camera, microphone, contacts, and files. Changes here can quietly grant an app capabilities you never approved — worth checking after any new install."
         case .systemTCC:
-            return "System-level privacy permissions (TCC) enforced across the host."
+            return "The system-wide counterpart to user TCC, covering permissions that apply across all accounts. Tampering here can grant full disk access or screen recording rights to any process on the machine."
         }
     }
 
@@ -1302,6 +1245,32 @@ struct TimelineRowView: View {
     }
 }
 
+// MARK: - SourceTitleButton
+
+private struct SourceTitleButton: View {
+    let location: PersistenceLocation
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(location.displayName)
+                    .font(.system(size: 16, weight: .semibold))
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(isHovered ? Color.orange : Color.primary)
+            .animation(.easeInOut(duration: 0.22), value: isHovered)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusable(false)
+        .onHover { isHovered = $0 }
+        .help("Open source in Finder")
+    }
+}
+
 // MARK: - TimelineCardView
 
 struct TimelineCardView: View {
@@ -1310,6 +1279,7 @@ struct TimelineCardView: View {
     let record: DiffRecord
     // Highlights the card when the user has selected it
     let isSelected: Bool
+    @AppStorage("useUTCTime") private var useUTCTime = false
 
     // Badge border color — tells you at a glance what kind of change happened
     private var moodColor: Color {
@@ -1341,7 +1311,11 @@ struct TimelineCardView: View {
                 // Top row: scan type badge + timestamp
                 HStack(spacing: 6) {
                     filmBadge
-                    Text(record.timestamp.formatted(.iso8601.year().month().day().dateSeparator(.dash).time(includingFractionalSeconds: false).timeSeparator(.colon)))
+                    Text(record.timestamp.formatted({
+                        var s = Date.FormatStyle().year().month(.twoDigits).day(.twoDigits).hour(.twoDigits(amPM: .omitted)).minute()
+                        s.timeZone = useUTCTime ? TimeZone(identifier: "UTC")! : .current
+                        return s
+                    }()))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -1482,6 +1456,8 @@ struct DashboardDetailPane: View {
     // Notifies the parent when the user takes an action so the tab badge can update
     var onActionTaken: () -> Void = {}
 
+    @AppStorage("useUTCTime") private var useUTCTime = false
+
     // The computed diff loaded for this record
     @State private var diff: PersistenceDiff? = nil
     // True while the diff is being calculated in the background
@@ -1577,18 +1553,7 @@ struct DashboardDetailPane: View {
             // Key-value rows describing the scan event
             VStack(alignment: .leading, spacing: 5) {
                 metaRow("what", value: whatText)
-                metaRow(
-                    "when",
-                    value: record.timestamp.formatted(
-                        .iso8601
-                            .year()
-                            .month()
-                            .day()
-                            .dateSeparator(.dash)
-                            .time(includingFractionalSeconds: false)
-                            .timeSeparator(.colon)
-                    )
-                )
+                metaRow("when", value: formatTimestamp(record.timestamp))
                 metaRow("where", value: scopeText)
                 metaRow("how", value: record.source == "Auto" ? "auto watch" : "manual scan")
                 metaRow("event", value: "#\(record.id.uuidString.prefix(8).uppercased())")
@@ -1596,9 +1561,16 @@ struct DashboardDetailPane: View {
             }
             .padding(.top, 2)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .rightPaneCardSurface(cornerRadius: cardCornerRadius)
+        .padding(.bottom, 10)
+    }
+
+    // Formats a date respecting the user's UTC preference
+    private func formatTimestamp(_ date: Date) -> String {
+        var style = Date.FormatStyle()
+            .year().month(.twoDigits).day(.twoDigits)
+            .hour(.twoDigits(amPM: .omitted)).minute()
+        style.timeZone = useUTCTime ? TimeZone(identifier: "UTC")! : .current
+        return date.formatted(style)
     }
 
     // Human-friendly summary of how many changes were detected
@@ -1831,7 +1803,7 @@ private struct SourceFolderButton: View {
         .focusable(false)
         .onHover { isHovered = $0 }
         .help("Reveal source in Finder")
-        .animation(.easeInOut(duration: 0.12), value: isHovered)
+        .animation(.easeInOut(duration: 0.22), value: isHovered)
     }
 
     // Opens the file in Finder — falls back to its parent folder if the file is gone

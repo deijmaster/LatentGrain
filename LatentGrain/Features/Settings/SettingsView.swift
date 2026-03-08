@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("compactMode")      private var compactMode      = false
     @AppStorage("showAttribution")  private var showAttribution  = true
     @AppStorage("checkForUpdates") private var checkForUpdates = true
+    @AppStorage("useUTCTime")      private var useUTCTime      = false
     @State private var isFDAGranted: Bool = FDAService.isGranted
 
     var body: some View {
@@ -59,6 +60,9 @@ struct SettingsView: View {
 
                 Toggle("Check for updates", isOn: $checkForUpdates)
                 .help("Checks GitHub weekly for new releases")
+
+                Toggle("Use UTC for timestamps", isOn: $useUTCTime)
+                .help("Show all scan times in UTC instead of your local timezone")
             }
 
             // MARK: Advanced

@@ -82,6 +82,7 @@ struct HoverSheenModifier: ViewModifier {
                         lineWidth: 0.9
                     )
                     .opacity(active ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.22), value: active)
                     .blendMode(.plusLighter)
                     .allowsHitTesting(false)
             }
@@ -108,6 +109,8 @@ struct OrangeHoverShimmerModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .hoverSheen(active: isHovered, opacity: opacity, cornerRadius: cornerRadius)
+            .scaleEffect(isHovered ? 1.013 : 1.0)
+            .animation(.easeInOut(duration: 0.22), value: isHovered)
             .onHover { isHovered = $0 }
     }
 }

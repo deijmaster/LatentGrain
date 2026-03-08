@@ -624,7 +624,7 @@ private struct ActionButton: View {
             .padding(.vertical, 4)
             .background(isHovered ? Color.accentColor.opacity(0.12) : Color.clear)
             .clipShape(Capsule())
-            .animation(.easeInOut(duration: 0.12), value: isHovered)
+            .animation(.easeInOut(duration: 0.22), value: isHovered)
         }
         .buttonStyle(.plain)
         .focusable(false)
