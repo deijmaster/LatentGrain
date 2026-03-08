@@ -35,6 +35,7 @@
 		A95DC26971CFC8377D6454D2 /* StorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B20627438F4EA851659C13F /* StorageService.swift */; };
 		B4784DB2264ECC6A2F4B8132 /* SearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F9900AECCE86A5B5B50522E /* SearchBar.swift */; };
 		B65CB36ADF7FA81B9222839B /* DiffRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B6BE0167CC1023C0596F170 /* DiffRecord.swift */; };
+		C0AFE6B7715BF2610DFE436E /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D600BDD9DC645A6C1A0797AD /* StatsView.swift */; };
 		C57C1B9A072B411650AE83A5 /* LatentGrainHelper.xpc in CopyFiles */ = {isa = PBXBuildFile; fileRef = 27A5546B1572A013154FD995 /* LatentGrainHelper.xpc */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C764C5D9E3B8C5C43217E943 /* WatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ED38968EC87672B36D734BA /* WatchService.swift */; };
 		D059539A53E31F20AA621FC8 /* SnapshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B9C80EEF434E646A23190B1 /* SnapshotService.swift */; };
@@ -119,6 +120,7 @@
 		C5131F368039DF5C56F403DF /* CoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreServices.framework; path = System/Library/Frameworks/CoreServices.framework; sourceTree = SDKROOT; };
 		D1631A7646355A18E2AF8243 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D1D484D280CD64D91E584617 /* TimelineTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineTheme.swift; sourceTree = "<group>"; };
+		D600BDD9DC645A6C1A0797AD /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		DE4D8BEEDC2372FA024969DF /* PolaroidCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolaroidCardView.swift; sourceTree = "<group>"; };
 		DEEE407EE7B5C10DCC266986 /* DiffServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffServiceTests.swift; sourceTree = "<group>"; };
 		E2551803EF7280F6A4C05B71 /* AppAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAttribution.swift; sourceTree = "<group>"; };
@@ -298,6 +300,7 @@
 		EE38F80687BB00778232EAB2 /* Timeline */ = {
 			isa = PBXGroup;
 			children = (
+				D600BDD9DC645A6C1A0797AD /* StatsView.swift */,
 				D1D484D280CD64D91E584617 /* TimelineTheme.swift */,
 				F4D4064EF3FA3FC4571F4E3C /* TimelineView.swift */,
 			);
@@ -456,6 +459,7 @@
 				B4784DB2264ECC6A2F4B8132 /* SearchBar.swift in Sources */,
 				890E98DC6F6280FD5FF82533 /* SettingsView.swift in Sources */,
 				D059539A53E31F20AA621FC8 /* SnapshotService.swift in Sources */,
+				C0AFE6B7715BF2610DFE436E /* StatsView.swift in Sources */,
 				A95DC26971CFC8377D6454D2 /* StorageService.swift in Sources */,
 				FAF706AE82510B3F773D73A9 /* TimelineTheme.swift in Sources */,
 				4C6FA35DEC60C364E7B7ED37 /* TimelineView.swift in Sources */,

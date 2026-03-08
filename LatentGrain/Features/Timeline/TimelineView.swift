@@ -51,11 +51,12 @@ struct TimelineView: View {
         let action: (() -> Void)?
     }
 
-    // The three top-level sections of the dashboard
+    // The four top-level sections of the dashboard
     private enum DashboardTab: String, CaseIterable, Identifiable {
         case timeline
         case sources
         case actions
+        case stats
 
         var id: String { rawValue }
 
@@ -63,8 +64,9 @@ struct TimelineView: View {
         var title: String {
             switch self {
             case .timeline: return "Timeline"
-            case .sources: return "Sources"
-            case .actions: return "Control Zone"
+            case .sources:  return "Sources"
+            case .actions:  return "Control Zone"
+            case .stats:    return "Stats"
             }
         }
     }
@@ -90,7 +92,7 @@ struct TimelineView: View {
         VStack(spacing: 0) {
             // Top navigation bar with breadcrumb and tab switcher
             header
-            // Content area swaps between the three main tabs
+            // Content area swaps between the four main tabs
             switch dashboardTab {
             case .timeline:
                 timelinePane
@@ -98,6 +100,8 @@ struct TimelineView: View {
                 sourcesPane
             case .actions:
                 actionsPane
+            case .stats:
+                StatsView()
             }
         }
         // Lets the user copy any visible text
@@ -1010,6 +1014,10 @@ struct TimelineView: View {
             pathTrail = [
                 BreadcrumbSegment(title: "Control Zone", action: nil)
             ]
+        case .stats:
+            pathTrail = [
+                BreadcrumbSegment(title: "Stats", action: nil)
+            ]
         }
         // "Persistence Timeline" is always the root crumb and navigates home when tapped
         let trail = [BreadcrumbSegment(title: "Persistence Timeline", action: {
@@ -1821,7 +1829,7 @@ private struct SourceFolderButton: View {
 }
 
 
-private extension View {
+extension View {
     // Masks the view so lower content fades out instead of hitting a hard edge.
     func windowEndFade(height: CGFloat = 56) -> some View {
         mask(
