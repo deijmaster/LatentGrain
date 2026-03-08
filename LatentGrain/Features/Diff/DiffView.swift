@@ -414,12 +414,12 @@ struct DiffView: View {
         VStack(alignment: .leading, spacing: 8) {
             // Section title coloured to match the change type — same as timeline detail pane
             Text(title)
-                .font(.system(size: 12))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(accent.opacity(0.85))
 
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(items) { item in
-                    ItemRow(item: item)
+                    ItemRow(item: item, changeIndicatorColor: accent)
                 }
             }
         }
@@ -449,6 +449,8 @@ struct ItemRow: View {
     let item: PersistenceItem
     // Hide when items are already grouped under a location header
     var showLocationBadge: Bool = true
+    // When set, shows a small coloured dot on the trailing edge indicating change type
+    var changeIndicatorColor: Color? = nil
 
     // Toggled in Settings — shows the attributed app icon and name below the filename
     @AppStorage("showAttribution") private var showAttribution = true
@@ -472,6 +474,12 @@ struct ItemRow: View {
                         badge("runs at login")
                     } else if item.keepAlive == true {
                         badge("keeps running")
+                    }
+                    if let color = changeIndicatorColor {
+                        Spacer()
+                        Circle()
+                            .fill(color.opacity(0.85))
+                            .frame(width: 7, height: 7)
                     }
                 }
 
