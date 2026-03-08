@@ -227,6 +227,8 @@ LatentGrain/
 
 Made with love in Montreal.
 
+Inspired by [Patrick Wardle](https://objective-see.org) and the work he does at Objective-See — BlockBlock, KnockKnock, LuLu, and the rest. The fact that world-class macOS security tooling exists and is free is because of people like him. This app wouldn't exist without that inspiration.
+
 Source available, non-commercial — © 2026 deijmaster. Personal use and forks welcome. Commercial use requires written permission. See [LICENSE](LICENSE).
 
 *Built with Swift + SwiftUI. No Electron was harmed in the making of this app.*

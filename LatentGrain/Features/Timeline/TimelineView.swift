@@ -734,6 +734,7 @@ struct TimelineView: View {
                 title: "Quarantined",
                 count: quarantined.count,
                 countSubtitle: "ready to restore",
+                explanation: "The file is physically moved out of its persistence location into a holding folder. macOS can no longer load it, but the original is preserved so you can inspect or restore it at any time. Use this when you want to stop something immediately while keeping the evidence intact.",
                 recordsTitle: "Quarantined Items",
                 records: quarantined,
                 emptyText: "No quarantined items.",
@@ -744,6 +745,7 @@ struct TimelineView: View {
                 title: "Disabled",
                 count: disabled.count,
                 countSubtitle: "ready to re-enable",
+                explanation: "The item is marked as disabled in the launchd database via launchctl. The file stays in place — macOS simply skips loading it on the next boot. Lighter touch than quarantine: nothing is moved, and re-enabling is instant. Both options are available for every item so you can choose how aggressively you want to act.",
                 recordsTitle: "Disabled Items",
                 records: disabled,
                 emptyText: "No disabled items.",
@@ -760,6 +762,7 @@ struct TimelineView: View {
         title: String,
         count: Int,
         countSubtitle: String,
+        explanation: String,
         recordsTitle: String,
         records: [StorageService.PersistenceActionRecord],
         emptyText: String,
@@ -768,6 +771,11 @@ struct TimelineView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 overviewCard(title: title, value: "\(count)", subtitle: countSubtitle)
+                Text(explanation)
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
                 managedActionSection(
                     title: recordsTitle,
                     records: records,
