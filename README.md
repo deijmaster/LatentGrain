@@ -48,12 +48,16 @@ Enable Watch Mode in Settings and LatentGrain monitors your persistence location
 | Reveal in Finder for any item | ✓ |
 | App attribution (resolve which app owns each item) | ✓ |
 | Persistence Timeline | ✓ |
+| Stats dashboard | ✓ |
+| Control Zone (disable / quarantine items) | ✓ |
 | Watch mode (real-time FSEvents monitoring) | ✓ |
 | Instant notifications on change | ✓ |
 
 **Other highlights:**
-- **Persistence Timeline** — vertical spine view showing every detection event; nodes alternate left/right with animated entrance; tap any event to see the full diff breakdown
+- **Persistence Timeline** — four-tab view: Timeline (full scan history), Sources (browser for each persistence location), Stats (infographic analytics dashboard), and Control Zone (manage disabled/quarantined items)
+- **Stats dashboard** — KPI cards, 14-day activity chart, change-type and scan-origin breakdowns, per-location bar charts, and insight callouts (scan frequency, clean streak, hotspot location)
 - **Liquid Glass design** — native macOS 26 Liquid Glass on timeline cards; graceful fallback on earlier versions
+- Monochrome timeline spine — neutral dots keep the scan list readable without color noise
 - Quick-access shortcuts to every persistence folder and all windows via the right-click menu
 - First-launch onboarding that walks you through the one required permission (Full Disk Access)
 - Clean, native Apple UI — Swift + SwiftUI, no Electron, no web views, no external dependencies
@@ -144,6 +148,11 @@ LatentGrainHelper            ← Privileged XPC helper
 
 ## Changelog
 
+### v5
+- **Stats tab** — new infographic analytics view inside the persistence timeline. Shows KPI tiles (total scans, changes found, items monitored, active actions), a 14-day activity bar chart with a change-intensity heatmap overlay, stacked proportion bars for change types (added/removed/modified) and scan origin (auto/manual), per-location horizontal bar charts for both events and current item counts, and three insight cards (scan frequency, clean streak, hotspot location). Colors match the existing per-location badge palette for consistency.
+- **Monochrome timeline dots** — removed the per-event color coding from the left-pane spine dots (green/blue/red/orange). The neutral white dots reduce visual noise and let the card content carry the meaning.
+- **Window fade helpers moved to shared theme** — `windowEndFade`, `windowStartFade`, and `windowEdgeFades` are now defined in `TimelineTheme.swift` instead of buried in `TimelineView.swift`, making them properly reusable across feature files.
+
 ### v4
 - **TCC database monitoring** — tracks user and system TCC databases (`com.apple.TCC/TCC.db`) for permission changes, a known attack surface (CVE-2022-26712). Opens Privacy & Security settings on tap.
 - **Configuration Profiles scanning** — detects MDM and configuration profile changes via `profiles` CLI
@@ -166,6 +175,7 @@ LatentGrainHelper            ← Privileged XPC helper
 - [x] First-launch onboarding (5-step), frictionless FDA flow
 - [x] Persistence Timeline (vertical spine, Liquid Glass), redesigned app icon
 - [x] TCC monitoring, color-coded location tags, improved detail cards
+- [x] Stats dashboard, Control Zone, monochrome timeline spine
 - [ ] Developer ID signing + notarization
 
 ---
@@ -201,7 +211,7 @@ LatentGrain/
 │   ├── Features/
 │   │   ├── Scan/               ScanView, ScanViewModel
 │   │   ├── Diff/               DiffView, PolaroidCardView, ItemRow
-│   │   ├── timeline/            timelineView, DiffRecordRowView, DiffDetailView
+│   │   ├── Timeline/           TimelineView, StatsView, DiffDetailView, TimelineTheme
 │   │   ├── Onboarding/         OnboardingView (5-step first-launch flow)
 │   │   └── Settings/           SettingsView
 │   ├── Models/                 PersistenceItem, Snapshot, Diff, DiffRecord

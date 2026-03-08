@@ -1201,14 +1201,6 @@ struct TimelineRowView: View {
     // Called when the user taps the row
     let onSelect: () -> Void
 
-    // Color of the timeline dot — green for clean, blue for added, red for removed
-    private var accentColor: Color {
-        if record.isEmpty { return .green }
-        if record.addedCount > 0 { return .accentColor }
-        if record.removedCount > 0 { return .red }
-        return .orange
-    }
-
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Leading gutter — vertical line + dot
@@ -1241,7 +1233,7 @@ struct TimelineRowView: View {
 
             // Dot
             Circle()
-                .fill(accentColor)
+                .fill(Color.white.opacity(0.35))
                 .frame(width: 8, height: 8)
 
             // Bottom connector
@@ -1829,50 +1821,6 @@ private struct SourceFolderButton: View {
 }
 
 
-extension View {
-    // Masks the view so lower content fades out instead of hitting a hard edge.
-    func windowEndFade(height: CGFloat = 56) -> some View {
-        mask(
-            VStack(spacing: 0) {
-                Rectangle().fill(Color.black)
-                LinearGradient(
-                    colors: [Color.black, Color.clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: height)
-            }
-        )
-    }
-
-    // Masks the view so content at the top fades in from the edge.
-    func windowStartFade(height: CGFloat = 40) -> some View {
-        mask(
-            VStack(spacing: 0) {
-                LinearGradient(
-                    colors: [Color.clear, Color.black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: height)
-                Rectangle().fill(Color.black)
-            }
-        )
-    }
-
-    // Both top and bottom fades combined.
-    func windowEdgeFades(topHeight: CGFloat = 40, bottomHeight: CGFloat = 56) -> some View {
-        mask(
-            VStack(spacing: 0) {
-                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                    .frame(height: topHeight)
-                Rectangle().fill(Color.black)
-                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                    .frame(height: bottomHeight)
-            }
-        )
-    }
-}
 
 // MARK: - Preview helpers
 

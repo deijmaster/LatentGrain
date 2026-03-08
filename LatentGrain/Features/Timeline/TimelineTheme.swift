@@ -32,4 +32,47 @@ extension View {
             )
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
+
+    // Masks the view so lower content fades out instead of hitting a hard edge.
+    func windowEndFade(height: CGFloat = 56) -> some View {
+        mask(
+            VStack(spacing: 0) {
+                Rectangle().fill(Color.black)
+                LinearGradient(
+                    colors: [Color.black, Color.clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: height)
+            }
+        )
+    }
+
+    // Masks the view so content at the top fades in from the edge.
+    func windowStartFade(height: CGFloat = 40) -> some View {
+        mask(
+            VStack(spacing: 0) {
+                LinearGradient(
+                    colors: [Color.clear, Color.black],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: height)
+                Rectangle().fill(Color.black)
+            }
+        )
+    }
+
+    // Both top and bottom fades combined.
+    func windowEdgeFades(topHeight: CGFloat = 40, bottomHeight: CGFloat = 56) -> some View {
+        mask(
+            VStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                    .frame(height: topHeight)
+                Rectangle().fill(Color.black)
+                LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                    .frame(height: bottomHeight)
+            }
+        )
+    }
 }
