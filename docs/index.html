@@ -21,10 +21,9 @@
       --accent: #c8953a;
       --accent-warm: #d4a853;
       --accent-glow: rgba(200, 149, 58, 0.12);
-      --green: #4e8f64;
-      --red: #8f4e4e;
       --font-mono: 'IBM Plex Mono', 'SF Mono', 'Courier New', monospace;
       --font-display: 'Courier Prime', 'Courier New', serif;
+      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,7 +98,7 @@
       min-height: 100vh;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 40px;
+      gap: 64px;
       align-items: center;
       padding: 120px 48px 80px;
       position: relative;
@@ -151,14 +150,15 @@
     h1 .accent { color: var(--accent); }
 
     .hero-tagline {
-      font-size: 15px;
-      font-weight: 300;
+      font-family: var(--font-body);
+      font-size: 16px;
+      font-weight: 400;
       color: var(--text-muted);
       max-width: 440px;
-      line-height: 1.85;
+      line-height: 1.8;
       margin-bottom: 44px;
     }
-    .hero-tagline strong { color: var(--text); font-weight: 400; }
+    .hero-tagline strong { color: var(--text); font-weight: 500; }
 
     .hero-cta {
       display: flex;
@@ -181,7 +181,6 @@
       align-items: center;
       gap: 10px;
       transition: all 0.2s;
-      box-shadow: 0 0 0 0 rgba(200,149,58,0);
     }
     .btn-primary:hover {
       background: var(--accent-warm);
@@ -195,46 +194,21 @@
       letter-spacing: 0.06em;
     }
 
-    /* ─── TERMINAL VISUAL ─── */
-    .hero-right { position: relative; }
-
-    .terminal {
-      background: var(--bg-card);
-      border: 1px solid var(--border-light);
-      font-size: 12px;
-      box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px var(--border);
-    }
-
-    .terminal-header {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
+    /* ─── HERO SCREENSHOT ─── */
+    .hero-right {
+      position: relative;
       display: flex;
+      justify-content: center;
       align-items: center;
-      gap: 6px;
-    }
-    .dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-    }
-    .dot-r { background: #3a1818; border: 1px solid #5a2828; }
-    .dot-y { background: #342e16; border: 1px solid #524826; }
-    .dot-g { background: #162a1e; border: 1px solid #264434; }
-    .terminal-title {
-      font-size: 11px;
-      color: var(--text-dim);
-      letter-spacing: 0.04em;
-      margin: 0 auto;
     }
 
-    .terminal-body {
-      padding: 20px 22px;
-      line-height: 2;
+    .hero-screenshot {
+      width: 100%;
+      max-width: 360px;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.7);
+      display: block;
+      border-radius: 3px;
     }
-    .t-dim { color: var(--text-dim); }
-    .t-muted { color: var(--text-muted); }
-    .t-text { color: var(--text); }
-    .t-green { color: var(--green); }
-    .t-accent { color: var(--accent); }
 
     /* ─── DIVIDER ─── */
     .full-divider {
@@ -278,9 +252,10 @@
     }
 
     .section-sub {
-      font-size: 14px;
+      font-family: var(--font-body);
+      font-size: 15px;
       color: var(--text-muted);
-      font-weight: 300;
+      font-weight: 400;
       line-height: 1.8;
       margin-bottom: 56px;
       max-width: 460px;
@@ -304,90 +279,8 @@
       font-size: 11px;
       letter-spacing: 0.1em;
       color: var(--text-dim);
-      margin-bottom: 28px;
+      margin-bottom: 20px;
     }
-
-    /* Polaroid */
-    .polaroid {
-      border: 1px solid var(--border-light);
-      background: #0e0d0c;
-      padding: 14px;
-      margin-bottom: 24px;
-    }
-    .polaroid-screen {
-      background: #080807;
-      height: 110px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid var(--border);
-      overflow: hidden;
-      position: relative;
-    }
-    .polaroid-label {
-      padding: 10px 4px 2px;
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--text-dim);
-      text-align: center;
-    }
-
-    /* Step 1 contents */
-    .snap-lines {
-      width: 100%;
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-    }
-    .snap-line {
-      font-size: 10px;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-    .snap-dot {
-      width: 4px; height: 4px;
-      border-radius: 50%;
-      background: var(--text-dim);
-      flex-shrink: 0;
-    }
-
-    /* Step 2 contents */
-    .undeveloped {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #060605;
-    }
-    .undeveloped span {
-      font-size: 10px;
-      letter-spacing: 0.14em;
-      color: #252320;
-      text-transform: uppercase;
-    }
-
-    /* Step 3 contents */
-    .revealed {
-      width: 100%;
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .rev-line {
-      font-size: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .rev-new { color: var(--green); }
-    .rev-mod { color: var(--accent); }
-    .rev-dim { color: var(--text-dim); }
 
     .step-title {
       font-family: var(--font-display);
@@ -395,93 +288,114 @@
       font-weight: 700;
       margin-bottom: 8px;
     }
+
     .step-desc {
-      font-size: 13px;
+      font-family: var(--font-body);
+      font-size: 14px;
       color: var(--text-muted);
-      font-weight: 300;
+      font-weight: 400;
       line-height: 1.75;
     }
 
-    /* ─── WATCHES SECTION ─── */
-    .watches-wrap {
-      background: var(--bg-surface);
+    /* ─── FEATURE SHOWCASE ─── */
+    .showcase-wrap {
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
     }
-    .watches-inner {
+
+    .showcase-inner {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 96px 48px;
-      display: grid;
+      padding: 80px 48px;
+    }
+
+    .showcase-tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 48px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .showcase-tab {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      padding: 12px 20px;
+      cursor: pointer;
+      position: relative;
+      transition: color 0.15s;
+    }
+    .showcase-tab:hover { color: var(--text); }
+    .showcase-tab.active { color: var(--accent); }
+    .showcase-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px; left: 0; right: 0;
+      height: 1px;
+      background: var(--accent);
+    }
+
+    .showcase-panel {
+      display: none;
       grid-template-columns: 1fr 1fr;
       gap: 72px;
-      align-items: start;
+      align-items: center;
+    }
+    .showcase-panel.active { display: grid; }
+
+    .showcase-text .section-label { margin-bottom: 12px; }
+
+    .showcase-desc {
+      font-family: var(--font-body);
+      font-size: 15px;
+      color: var(--text-muted);
+      font-weight: 400;
+      line-height: 1.85;
+      margin-top: 14px;
     }
 
-    .location-list {
-      border: 1px solid var(--border);
-      background: var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
+    .showcase-img {
+      width: 100%;
+      display: block;
+      border-radius: 3px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.65);
+      filter: brightness(0.82);
+      cursor: zoom-in;
+      transition: filter 0.2s, transform 0.2s;
     }
-    .location-item {
-      background: var(--bg);
-      padding: 15px 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      transition: background 0.15s;
-    }
-    .location-item:hover { background: var(--bg-card); }
-    .loc-name {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text);
-      letter-spacing: 0.03em;
-    }
-    .loc-path {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-weight: 300;
-    }
-    .loc-path em {
-      font-style: normal;
-      color: var(--accent);
+    .showcase-img:hover {
+      filter: brightness(0.92);
+      transform: scale(1.01);
     }
 
-    /* Features */
-    .feature-list {
-      display: flex;
-      flex-direction: column;
-      gap: 32px;
-      margin-top: 44px;
+    /* ─── LIGHTBOX ─── */
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(0,0,0,0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+      padding: 32px;
     }
-    .feature-item {
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-    }
-    .feature-icon {
-      font-size: 11px;
-      color: var(--accent);
-      padding-top: 2px;
-      flex-shrink: 0;
-      width: 28px;
-      letter-spacing: 0.02em;
-    }
-    .feature-text h4 {
-      font-family: var(--font-mono);
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text);
-      margin-bottom: 5px;
-    }
-    .feature-text p {
-      font-size: 12px;
-      color: var(--text-muted);
-      font-weight: 300;
-      line-height: 1.75;
+    .lightbox.open { display: flex; }
+    .lightbox img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 3px;
+      box-shadow: 0 40px 120px rgba(0,0,0,0.8);
+      cursor: default;
     }
 
     /* ─── DOWNLOAD ─── */
@@ -542,6 +456,22 @@
     }
     .download-note:last-child { border-right: none; }
 
+    /* ─── SPONSOR NUDGE ─── */
+    .sponsor-nudge {
+      font-family: var(--font-body);
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 20px;
+      line-height: 1.6;
+    }
+    .sponsor-nudge a {
+      color: var(--text-muted);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: color 0.15s;
+    }
+    .sponsor-nudge a:hover { color: var(--accent); }
+
     /* ─── FOOTER ─── */
     footer {
       border-top: 1px solid var(--border);
@@ -591,9 +521,13 @@
     @media (max-width: 860px) {
       nav { padding: 16px 20px; }
       .hero { grid-template-columns: 1fr; padding: 100px 20px 60px; gap: 48px; }
+      .hero-right { justify-content: flex-start; }
+      .hero-screenshot { max-width: 100%; }
       .section { padding: 72px 20px; }
       .steps { grid-template-columns: 1fr; }
-      .watches-inner { grid-template-columns: 1fr; gap: 48px; padding: 72px 20px; }
+      .showcase-inner { padding: 56px 20px; }
+      .showcase-panel.active { grid-template-columns: 1fr; gap: 36px; }
+      .showcase-tabs { overflow-x: auto; }
       .download-wrap { padding: 80px 20px; }
       footer { padding: 20px; flex-direction: column; gap: 8px; text-align: center; }
     }
@@ -604,7 +538,7 @@
   <!-- NAV -->
   <nav>
     <a href="#" class="nav-logo">Latent<span>Grain</span></a>
-    <a href="#download" class="nav-download">Download Free</a>
+    <a href="https://github.com/deijmaster/LatentGrain/releases/download/latest/LatentGrain.dmg" class="nav-download">Download Free</a>
   </nav>
 
   <!-- HERO -->
@@ -616,42 +550,20 @@
         <span class="accent">changed.</span><span class="cursor"></span>
       </h1>
       <p class="hero-tagline">
-        Install an app. <strong>LatentGrain shows you exactly what it left behind.</strong>
-        Launch agents, daemons, system extensions — captured before and after, side by side.
+        <strong>Wrap any install with a before/after snapshot</strong> — or let LatentGrain watch continuously and alert you the moment something appears.
+        Launch agents, daemons, system extensions — nothing gets added to your Mac without you knowing.
       </p>
       <div class="hero-cta">
         <a href="https://github.com/deijmaster/LatentGrain/releases/download/latest/LatentGrain.dmg" class="btn-primary">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3.5 6.5l3 3 3-3M1.5 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Download for macOS
         </a>
-        <span class="hero-meta">macOS 13+ &nbsp;·&nbsp; Free</span>
+        <span class="hero-meta">macOS 14+ &nbsp;·&nbsp; Free</span>
       </div>
     </div>
 
     <div class="hero-right">
-      <div class="terminal">
-        <div class="terminal-header">
-          <div class="dot dot-r"></div>
-          <div class="dot dot-y"></div>
-          <div class="dot dot-g"></div>
-          <span class="terminal-title">latentgrain — diff report</span>
-        </div>
-        <div class="terminal-body">
-          <div class="t-dim">Comparing snapshots &nbsp;&nbsp;before → after</div>
-          <br>
-          <div class="t-muted">~/Library/LaunchAgents</div>
-          <div class="t-green">&nbsp;&nbsp;+ com.example.updater.plist</div>
-          <div class="t-green">&nbsp;&nbsp;+ com.helper.agent.plist</div>
-          <br>
-          <div class="t-muted">/Library/LaunchDaemons</div>
-          <div class="t-green">&nbsp;&nbsp;+ com.example.daemon.plist</div>
-          <br>
-          <div class="t-muted">/Library/SystemExtensions</div>
-          <div class="t-text">&nbsp;&nbsp;(no changes)</div>
-          <br>
-          <div class="t-accent">2 new agents &nbsp;·&nbsp; 1 new daemon &nbsp;·&nbsp; 0 extensions</div>
-        </div>
-      </div>
+      <img src="screenshots/diffview.png" alt="LatentGrain diff view showing persistence items found after a scan" class="hero-screenshot fade-in">
     </div>
   </div>
 
@@ -659,125 +571,75 @@
 
   <!-- HOW IT WORKS -->
   <div class="section">
-    <div class="section-label">How it works</div>
-    <h2>Before. Install. After.</h2>
-    <p class="section-sub">Three clicks. No configuration. See exactly what any installer touches on your system.</p>
+    <div class="section-label">Two ways to use it</div>
+    <h2>On demand, or always on.</h2>
+    <p class="section-sub">Use it when you need it, or let it run quietly in the background. Both modes give you the same clear, readable output.</p>
 
     <div class="steps">
-      <div class="step fade-in">
-        <div class="step-number">01 — Shoot Before</div>
-        <div class="polaroid">
-          <div class="polaroid-screen">
-            <div class="snap-lines">
-              <div class="snap-line"><div class="snap-dot"></div><span>LaunchAgents &nbsp;· 3 items</span></div>
-              <div class="snap-line"><div class="snap-dot"></div><span>LaunchDaemons · 12 items</span></div>
-              <div class="snap-line"><div class="snap-dot"></div><span>SystemExtensions · 1 item</span></div>
-              <div class="snap-line"><div class="snap-dot"></div><span>BackgroundTasks · 8 items</span></div>
-            </div>
-          </div>
-          <div class="polaroid-label">snapshot taken</div>
-        </div>
-        <div class="step-title">Snapshot your clean state</div>
-        <p class="step-desc">Before installing anything, hit "Shoot Before." LatentGrain records every persistence location on your Mac.</p>
+      <div class="step fade-in" style="grid-column: span 1">
+        <div class="step-number">Manual — Before / After</div>
+        <div class="step-title">Wrap any install.</div>
+        <p class="step-desc">Hit "Shoot Before," install your app, hit "Shoot After." LatentGrain diffs the two snapshots and shows you exactly what was added, removed, or changed — nothing more, nothing less.</p>
       </div>
 
       <div class="step fade-in" style="transition-delay:0.1s">
-        <div class="step-number">02 — Install anything</div>
-        <div class="polaroid">
-          <div class="polaroid-screen">
-            <div class="undeveloped">
-              <span>developing</span>
-            </div>
-          </div>
-          <div class="polaroid-label">pending</div>
-        </div>
-        <div class="step-title">Install your app</div>
-        <p class="step-desc">Run your installer, drag your app, do whatever you need to. LatentGrain waits quietly in your menu bar.</p>
+        <div class="step-number">Always-on — Persistence Timeline</div>
+        <div class="step-title">Watch while you work.</div>
+        <p class="step-desc">Enable auto-scan and LatentGrain monitors your persistence locations in the background. Every change lands in the Timeline with a timestamp and full detail — and you get a quiet notification so nothing slips by unnoticed.</p>
       </div>
 
       <div class="step fade-in" style="transition-delay:0.2s">
-        <div class="step-number">03 — Shoot After</div>
-        <div class="polaroid">
-          <div class="polaroid-screen">
-            <div class="revealed">
-              <div class="rev-line rev-new">+ com.app.updater.plist</div>
-              <div class="rev-line rev-new">+ com.app.daemon.plist</div>
-              <div class="rev-line rev-mod">~ com.helper.plist</div>
-              <div class="rev-line rev-dim">&nbsp; 3 items unchanged</div>
-            </div>
-          </div>
-          <div class="polaroid-label">2 new &nbsp;·&nbsp; 1 modified</div>
-        </div>
-        <div class="step-title">See what changed</div>
-        <p class="step-desc">Hit "Shoot After" and develop the results. New items appear in green. Changes are listed clearly — no jargon, no panic.</p>
+        <div class="step-number">Both modes</div>
+        <div class="step-title">Full history, always.</div>
+        <p class="step-desc">Every scan — manual or automatic — is recorded in the Persistence Timeline. Review what changed last week, compare locations over time, or drill into a single event months later.</p>
       </div>
     </div>
   </div>
 
-  <!-- WHAT IT WATCHES -->
-  <div class="watches-wrap">
-    <div class="watches-inner">
-      <div>
-        <div class="section-label">Coverage</div>
-        <h2>Every persistence point, watched.</h2>
-        <p class="section-sub" style="margin-bottom:28px;">LatentGrain monitors the locations macOS uses to run code at login and in the background.</p>
-        <div class="location-list">
-          <div class="location-item">
-            <div class="loc-name">User Launch Agents</div>
-            <div class="loc-path"><em>~/</em>Library/LaunchAgents</div>
-          </div>
-          <div class="location-item">
-            <div class="loc-name">System Launch Agents</div>
-            <div class="loc-path"><em>/</em>Library/LaunchAgents</div>
-          </div>
-          <div class="location-item">
-            <div class="loc-name">System Launch Daemons</div>
-            <div class="loc-path"><em>/</em>Library/LaunchDaemons</div>
-          </div>
-          <div class="location-item">
-            <div class="loc-name">System Extensions</div>
-            <div class="loc-path"><em>/</em>Library/SystemExtensions</div>
-          </div>
-          <div class="location-item">
-            <div class="loc-name">Background Task Management</div>
-            <div class="loc-path"><em>/private/var/db/</em>com.apple.backgroundtaskmanagement</div>
-          </div>
-        </div>
+  <!-- FEATURE SHOWCASE -->
+  <div class="showcase-wrap">
+    <div class="showcase-inner">
+      <div class="showcase-tabs">
+        <button class="showcase-tab active" data-panel="timeline">Timeline</button>
+        <button class="showcase-tab" data-panel="sources">Sources</button>
+        <button class="showcase-tab" data-panel="controlzone">Control Zone</button>
+        <button class="showcase-tab" data-panel="stats">Stats</button>
       </div>
 
-      <div>
-        <div class="section-label">Features</div>
-        <h2>Security tooling that doesn't yell at you.</h2>
-        <div class="feature-list">
-          <div class="feature-item fade-in">
-            <div class="feature-icon">[1]</div>
-            <div class="feature-text">
-              <h4>Before / After Workflow</h4>
-              <p>Snapshot before installing, snapshot after. The diff is a clean, readable list — not a raw log dump.</p>
-            </div>
-          </div>
-          <div class="feature-item fade-in" style="transition-delay:0.06s">
-            <div class="feature-icon">[2]</div>
-            <div class="feature-text">
-              <h4>Automated Scanning</h4>
-              <p>Enable background monitoring and get a quiet notification when anything new appears. Requires Full Disk Access.</p>
-            </div>
-          </div>
-          <div class="feature-item fade-in" style="transition-delay:0.12s">
-            <div class="feature-icon">[3]</div>
-            <div class="feature-text">
-              <h4>Friendly Summaries</h4>
-              <p>"2 new agents installed" — not raw system paths or threat scores. You decide what matters.</p>
-            </div>
-          </div>
-          <div class="feature-item fade-in" style="transition-delay:0.18s">
-            <div class="feature-icon">[4]</div>
-            <div class="feature-text">
-              <h4>Menu Bar Only</h4>
-              <p>Lives in your menu bar. No Dock icon, no nag screens. Out of the way until you need it.</p>
-            </div>
-          </div>
+      <div class="showcase-panel active" id="panel-timeline">
+        <div class="showcase-text">
+          <div class="section-label">Timeline</div>
+          <h2>Every change, forever on record.</h2>
+          <p class="showcase-desc">A full history of everything LatentGrain has ever detected — timestamped, labeled, and searchable. Click any event to see exactly which files were added, removed, or modified and where they live. Nothing scrolls off, nothing gets lost.</p>
         </div>
+        <img src="screenshots/timeline.png" alt="Persistence Timeline tab" class="showcase-img">
+      </div>
+
+      <div class="showcase-panel" id="panel-sources">
+        <div class="showcase-text">
+          <div class="section-label">Sources</div>
+          <h2>Know every inch of your attack surface.</h2>
+          <p class="showcase-desc">Each persistence location explained — what it does, why it matters, and a full history of what's changed there. Not just a file list: context that helps you decide whether something belongs or doesn't.</p>
+        </div>
+        <img src="screenshots/sources.png" alt="Sources tab" class="showcase-img">
+      </div>
+
+      <div class="showcase-panel" id="panel-controlzone">
+        <div class="showcase-text">
+          <div class="section-label">Control Zone</div>
+          <h2>Act on what you find. Reversibly.</h2>
+          <p class="showcase-desc">Two levels of response when something looks wrong. Quarantine moves the file out of reach while keeping it intact for inspection. Disable tells macOS to skip loading it — lighter touch, instant to undo. Both are non-destructive. You stay in control.</p>
+        </div>
+        <img src="screenshots/control-zone.png" alt="Control Zone tab" class="showcase-img">
+      </div>
+
+      <div class="showcase-panel" id="panel-stats">
+        <div class="showcase-text">
+          <div class="section-label">Stats</div>
+          <h2>A clear picture of what's been happening.</h2>
+          <p class="showcase-desc">Total scans, changes found, which locations are most active, auto vs manual breakdown. Not a threat dashboard — just the facts about your Mac's persistence layer, so you can spot patterns before they become problems.</p>
+        </div>
+        <img src="screenshots/stats.png" alt="Stats tab" class="showcase-img">
       </div>
     </div>
   </div>
@@ -793,12 +655,21 @@
         LatentGrain.dmg
       </a>
       <div class="download-notes">
-        <span class="download-note">macOS 13 Ventura or later</span>
+        <span class="download-note">macOS 14 Sonoma or later</span>
         <span class="download-note">Apple Silicon &amp; Intel</span>
         <span class="download-note">Full Disk Access for auto-scan</span>
         <span class="download-note">Free forever</span>
       </div>
+      <p class="sponsor-nudge">
+        Free to use, forever. If it saves you time or worry,
+        <a href="https://github.com/sponsors/deijmaster" target="_blank" rel="noopener">a small sponsorship</a> goes a long way.
+      </p>
     </div>
+  </div>
+
+  <!-- LIGHTBOX -->
+  <div class="lightbox" id="lightbox">
+    <img id="lightbox-img" src="" alt="">
   </div>
 
   <!-- FOOTER -->
@@ -812,6 +683,29 @@
       entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
     }, { threshold: 0.12 });
     document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+    const lightbox = document.getElementById('lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+
+    document.querySelectorAll('.showcase-img').forEach(img => {
+      img.addEventListener('click', () => {
+        lightboxImg.src = img.src;
+        lightboxImg.alt = img.alt;
+        lightbox.classList.add('open');
+      });
+    });
+
+    lightbox.addEventListener('click', () => lightbox.classList.remove('open'));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') lightbox.classList.remove('open'); });
+
+    document.querySelectorAll('.showcase-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.showcase-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.showcase-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+      });
+    });
   </script>
 
 </body>
